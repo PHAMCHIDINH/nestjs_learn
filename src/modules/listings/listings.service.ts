@@ -13,7 +13,11 @@ import {
   UserRole,
 } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
-import { CreateListingDto } from './dto/create-listing.dto';
+import { CloudinaryService } from '../../core/media/cloudinary.service';
+import {
+  CreateListingDto,
+  ListingImageInputDto,
+} from './dto/create-listing.dto';
 import { ListingQueryDto } from './dto/listing-query.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import {
@@ -30,7 +34,10 @@ type AuthUser = {
 
 @Injectable()
 export class ListingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   async create(payload: CreateListingDto, authUser: AuthUser) {
     const category = await this.prisma.category.findUnique({
@@ -42,6 +49,7 @@ export class ListingsService {
     }
 
     const slug = await this.generateSlug(payload.title);
+    const images = this.normalizeImageInputs(payload.images);
 
     const listing = await this.prisma.listing.create({
       data: {
@@ -58,10 +66,11 @@ export class ListingsService {
         slug,
         sellerId: authUser.userId,
         categoryId: category.id,
-        images: payload.images?.length
+        images: images.length
           ? {
-              create: payload.images.map((url, index) => ({
-                url,
+              create: images.map((image, index) => ({
+                url: image.url,
+                publicId: image.publicId,
                 order: index,
               })),
             }
@@ -74,7 +83,7 @@ export class ListingsService {
   }
 
   async findAll(query: ListingQueryDto, authUser?: AuthUser) {
-    const where = await this.buildListWhere(query);
+    const where = await this.buildListWhere(query, authUser);
 
     const [total, listings] = await this.prisma.$transaction([
       this.prisma.listing.count({ where }),
@@ -137,8 +146,11 @@ export class ListingsService {
     query: ListingQueryDto,
     authUser?: AuthUser,
   ) {
-    const where = await this.buildListWhere(query);
+    const where = await this.buildListWhere(query, authUser);
     where.sellerId = sellerId;
+    if (!query.approvalStatus && authUser?.userId === sellerId) {
+      delete where.approvalStatus;
+    }
 
     const [total, listings] = await this.prisma.$transaction([
       this.prisma.listing.count({ where }),
@@ -237,13 +249,28 @@ export class ListingsService {
   }
 
   async remove(id: string, authUser: AuthUser) {
-    const existing = await this.prisma.listing.findUnique({ where: { id } });
+    const existing = await this.prisma.listing.findUnique({
+      where: { id },
+      include: {
+        images: true,
+      },
+    });
 
     if (!existing) {
       throw new NotFoundException('Listing not found');
     }
 
     this.assertCanMutate(existing.sellerId, authUser);
+
+    const imagesWithPublicId = existing.images
+      .map((image) => image.publicId)
+      .filter((publicId): publicId is string => Boolean(publicId));
+
+    await Promise.all(
+      imagesWithPublicId.map((publicId) =>
+        this.cloudinaryService.destroyImage(publicId),
+      ),
+    );
 
     await this.prisma.listing.delete({ where: { id } });
 
@@ -298,7 +325,14 @@ export class ListingsService {
 
   private async buildListWhere(
     query: ListingQueryDto,
+    authUser?: AuthUser,
   ): Promise<Prisma.ListingWhereInput> {
+    if (query.approvalStatus && authUser?.role !== UserRole.ADMIN) {
+      throw new ForbiddenException(
+        'approvalStatus filter is only available for admin',
+      );
+    }
+
     const where: Prisma.ListingWhereInput = {
       approvalStatus: query.approvalStatus
         ? this.parseApprovalStatus(query.approvalStatus)
@@ -360,6 +394,54 @@ export class ListingsService {
       case 'newest':
       default:
         return { createdAt: 'desc' };
+    }
+  }
+
+  private normalizeImageInputs(inputs?: ListingImageInputDto[]) {
+    if (!inputs || inputs.length === 0) {
+      return [];
+    }
+
+    if (inputs.length > 5) {
+      throw new BadRequestException('images must contain at most 5 items');
+    }
+
+    return inputs.map((input) => {
+      if (typeof input === 'string') {
+        return {
+          url: this.ensureValidUrl(input, 'images'),
+          publicId: undefined,
+        };
+      }
+
+      if (
+        !input ||
+        typeof input !== 'object' ||
+        typeof input.url !== 'string'
+      ) {
+        throw new BadRequestException('Invalid images payload');
+      }
+
+      return {
+        url: this.ensureValidUrl(input.url, 'images'),
+        publicId:
+          typeof input.publicId === 'string' && input.publicId.trim()
+            ? input.publicId.trim()
+            : undefined,
+      };
+    });
+  }
+
+  private ensureValidUrl(value: string, field: string) {
+    const trimmed = value.trim();
+    try {
+      const parsedUrl = new URL(trimmed);
+      if (!parsedUrl.protocol.startsWith('http')) {
+        throw new Error('Unsupported URL protocol');
+      }
+      return trimmed;
+    } catch {
+      throw new BadRequestException(`Invalid URL in ${field}`);
     }
   }
 

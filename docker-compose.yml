@@ -29,6 +29,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001,http://127.0.0.1:3001}
       DATABASE_URL: postgresql://app_user:app_password@postgres:5432/app_db?schema=public
       JWT_SECRET: change-me-in-production
       SMTP_HOST: ${SMTP_HOST:-}
@@ -37,6 +38,10 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      CLOUDINARY_FOLDER: ${CLOUDINARY_FOLDER:-cho-sinh-vien/listings}
     ports:
       - "3000:3000"
 

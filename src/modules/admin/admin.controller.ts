@@ -1,9 +1,12 @@
 import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { AdminService } from './admin.service';
 
+@ApiTags('Admin')
+@ApiBearerAuth('bearer')
 @Controller('admin')
 @UseGuards(AuthGuard, RolesGuard)
 @Roles('ADMIN')
@@ -11,31 +14,37 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Get('listings/pending')
+  @ApiOperation({ summary: 'Get pending listings' })
   pendingListings() {
     return this.adminService.pendingListings();
   }
 
   @Post('listings/:id/approve')
+  @ApiOperation({ summary: 'Approve listing' })
   approveListing(@Param('id') id: string) {
     return this.adminService.approveListing(id);
   }
 
   @Post('listings/:id/reject')
+  @ApiOperation({ summary: 'Reject listing' })
   rejectListing(@Param('id') id: string) {
     return this.adminService.rejectListing(id);
   }
 
   @Get('reports')
+  @ApiOperation({ summary: 'Get reports' })
   reports(@Query('status') status?: string) {
     return this.adminService.reports(status);
   }
 
   @Post('reports/:id/resolve')
+  @ApiOperation({ summary: 'Resolve report' })
   resolveReport(@Param('id') id: string) {
     return this.adminService.resolveReport(id);
   }
 
   @Post('reports/:id/dismiss')
+  @ApiOperation({ summary: 'Dismiss report' })
   dismissReport(@Param('id') id: string) {
     return this.adminService.dismissReport(id);
   }

@@ -10,6 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { CreateConversationDto } from './dto/create-conversation.dto';
@@ -21,18 +22,22 @@ type AuthUser = {
   userId: string;
 };
 
+@ApiTags('Conversations')
+@ApiBearerAuth('bearer')
 @Controller('conversations')
 @UseGuards(AuthGuard)
 export class ConversationsController {
   constructor(private readonly conversationsService: ConversationsService) {}
 
   @Get()
+  @ApiOperation({ summary: 'Get conversations for current user' })
   findMine(@CurrentUser() authUser: AuthUser) {
     return this.conversationsService.findMine(authUser);
   }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create conversation' })
   create(
     @CurrentUser() authUser: AuthUser,
     @Body() payload: CreateConversationDto,
@@ -41,6 +46,7 @@ export class ConversationsController {
   }
 
   @Get(':id/messages')
+  @ApiOperation({ summary: 'Get messages in a conversation' })
   findMessages(
     @Param('id') id: string,
     @CurrentUser() authUser: AuthUser,
@@ -51,6 +57,7 @@ export class ConversationsController {
 
   @Post(':id/messages')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Send message to a conversation' })
   sendMessage(
     @Param('id') id: string,
     @CurrentUser() authUser: AuthUser,
@@ -61,6 +68,7 @@ export class ConversationsController {
 
   @Patch(':id/read')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mark conversation as read' })
   markRead(@Param('id') id: string, @CurrentUser() authUser: AuthUser) {
     return this.conversationsService.markRead(id, authUser);
   }

@@ -11,8 +11,25 @@ import { CreateConversationDto } from './dto/create-conversation.dto';
 import { ConversationMessagesQueryDto } from './dto/conversation-messages-query.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 
-type AuthUser = {
+export type AuthUser = {
   userId: string;
+};
+
+type FrontendMessage = {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  content: string;
+  type: 'text' | 'image';
+  imageUrl?: string;
+  createdAt: Date;
+  read: boolean;
+  productId?: string;
+};
+
+type SendMessageResult = {
+  message: FrontendMessage;
+  participantIds: string[];
 };
 
 type ConversationWithRelations = Prisma.ConversationGetPayload<{
@@ -179,6 +196,23 @@ export class ConversationsService {
   }
 
   async sendMessage(id: string, authUser: AuthUser, payload: SendMessageDto) {
+    const result = await this.sendMessageInternal(id, authUser, payload);
+    return result.message;
+  }
+
+  async sendMessageRealtime(
+    id: string,
+    authUser: AuthUser,
+    payload: SendMessageDto,
+  ): Promise<SendMessageResult> {
+    return this.sendMessageInternal(id, authUser, payload);
+  }
+
+  private async sendMessageInternal(
+    id: string,
+    authUser: AuthUser,
+    payload: SendMessageDto,
+  ): Promise<SendMessageResult> {
     const conversation = await this.getConversationParticipantData(
       id,
       authUser.userId,
@@ -220,13 +254,18 @@ export class ConversationsService {
         (participant) => participant.userId !== authUser.userId,
       )?.userId ?? authUser.userId;
 
-    return this.mapMessage(
-      message,
-      authUser.userId,
-      otherUserId,
-      me?.lastReadAt ?? null,
-      conversation.listingId,
-    );
+    return {
+      message: this.mapMessage(
+        message,
+        authUser.userId,
+        otherUserId,
+        me?.lastReadAt ?? null,
+        conversation.listingId,
+      ),
+      participantIds: conversation.participants.map(
+        (participant) => participant.userId,
+      ),
+    };
   }
 
   async markRead(id: string, authUser: AuthUser) {
@@ -370,14 +409,14 @@ export class ConversationsService {
     otherUserId: string,
     myLastReadAt: Date | null,
     listingId: string | null,
-  ) {
+  ): FrontendMessage {
     return {
       id: message.id,
       senderId: message.senderId,
       receiverId:
         message.senderId === currentUserId ? otherUserId : currentUserId,
       content: message.content ?? '',
-      type: message.type.toLowerCase(),
+      type: message.type === MessageType.IMAGE ? 'image' : 'text',
       imageUrl: message.imageUrl ?? undefined,
       createdAt: message.createdAt,
       read:

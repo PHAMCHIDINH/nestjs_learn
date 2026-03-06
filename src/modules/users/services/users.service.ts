@@ -4,9 +4,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ApprovalStatus, Prisma } from '@prisma/client';
+import { ApprovalStatus, Department, Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { PrismaService } from '../../../core/database/prisma.service';
+import { CloudinaryService } from '../../../core/media/cloudinary.service';
 import { ListingQueryDto } from '../../listings/dto/listing-query.dto';
 import {
   mapConditionFromFrontend,
@@ -15,6 +16,7 @@ import {
   mapStatusFromFrontend,
 } from '../../listings/listing.mapper';
 import { CreateUserDto } from '../dto/create-user.dto';
+import { UpdateMeDto } from '../dto/update-me.dto';
 import { mapUserToFrontend } from '../user.mapper';
 
 type AuthUser = {
@@ -23,7 +25,10 @@ type AuthUser = {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   async findAll() {
     const users = await this.prisma.user.findMany({
@@ -52,7 +57,7 @@ export class UsersService {
     }
 
     const passwordHash = await bcrypt.hash(payload.password, 10);
-    let department;
+    let department: Department | undefined;
     try {
       department = payload.department
         ? mapDepartmentFromFrontendValue(payload.department)
@@ -83,6 +88,70 @@ export class UsersService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
+
+    return mapUserToFrontend(user);
+  }
+
+  async updateMe(authUser: AuthUser, payload: UpdateMeDto) {
+    const existing = await this.prisma.user.findUnique({
+      where: { id: authUser.userId },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('User not found');
+    }
+
+    const data: Prisma.UserUpdateInput = {};
+
+    if (payload.name !== undefined) {
+      const trimmedName = payload.name.trim();
+      if (!trimmedName) {
+        throw new BadRequestException('Invalid name');
+      }
+      data.name = trimmedName;
+    }
+
+    if (payload.department !== undefined) {
+      try {
+        data.department = payload.department
+          ? mapDepartmentFromFrontendValue(payload.department)
+          : undefined;
+      } catch {
+        throw new BadRequestException('Invalid department');
+      }
+    }
+
+    if (payload.avatar !== undefined) {
+      if (payload.avatar === null) {
+        if (existing.avatarPublicId) {
+          await this.cloudinaryService.destroyImage(existing.avatarPublicId);
+        }
+        data.avatarUrl = null;
+        data.avatarPublicId = null;
+      } else {
+        const avatarUrl = this.ensureValidHttpUrl(payload.avatar.url, 'avatar');
+        const avatarPublicId = payload.avatar.publicId?.trim() || null;
+
+        if (
+          existing.avatarPublicId &&
+          existing.avatarPublicId !== avatarPublicId
+        ) {
+          await this.cloudinaryService.destroyImage(existing.avatarPublicId);
+        }
+
+        data.avatarUrl = avatarUrl;
+        data.avatarPublicId = avatarPublicId;
+      }
+    }
+
+    if (Object.keys(data).length === 0) {
+      return mapUserToFrontend(existing);
+    }
+
+    const user = await this.prisma.user.update({
+      where: { id: authUser.userId },
+      data,
+    });
 
     return mapUserToFrontend(user);
   }
@@ -200,5 +269,19 @@ export class UsersService {
         totalPages: Math.ceil(total / query.limit),
       },
     };
+  }
+
+  private ensureValidHttpUrl(value: string, field: string): string {
+    const trimmed = value.trim();
+
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw new Error('Invalid protocol');
+      }
+      return trimmed;
+    } catch {
+      throw new BadRequestException(`Invalid ${field} URL`);
+    }
   }
 }

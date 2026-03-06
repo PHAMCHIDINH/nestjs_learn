@@ -25,6 +25,15 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+## Documentation
+
+Backend technical documentation is available in the `docs/` folder:
+
+- `docs/README.md`
+- `docs/BACKEND_TECH_STACK.md`
+- `docs/ARCHITECTURE.md`
+- `docs/SERVERCN_BACKEND_IMPLEMENTATION_PLAN.md`
+
 ## Project setup
 
 ```bash
@@ -70,11 +79,27 @@ SMTP_PASS=your-smtp-password
 SMTP_FROM="Cho Sinh Vien <no-reply@example.com>"
 ```
 
+## Cloudinary Configuration for Listing Images
+
+Set these variables in `backend-repo/.env`:
+
+```bash
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+CLOUDINARY_FOLDER=cho-sinh-vien/listings
+```
+
 Quick API test:
 
 ```bash
 # health
 $ curl http://localhost:3000/health
+$ curl http://localhost:3000/health/liveness
+$ curl http://localhost:3000/health/readiness
+
+# swagger docs
+$ open http://localhost:3000/docs
 
 # register
 $ curl -X POST http://localhost:3000/auth/register \
@@ -88,6 +113,14 @@ $ curl -X POST http://localhost:3000/auth/verify-otp \
 
 # list listings
 $ curl "http://localhost:3000/listings?page=1&limit=20"
+```
+
+## Security / CORS
+
+Set `CORS_ORIGIN` as a comma-separated allow-list in `.env` for production-like environments:
+
+```bash
+CORS_ORIGIN="https://app.example.com,https://admin.example.com"
 ```
 
 Stop:

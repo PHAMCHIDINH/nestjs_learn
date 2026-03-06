@@ -62,9 +62,10 @@ model User {
   studentId    String      @unique
   passwordHash String
 
-  name       String
-  avatarUrl  String?
-  department Department?
+  name           String
+  avatarUrl      String?
+  avatarPublicId String?
+  department     Department?
 
   sellerRating Float @default(0)
   totalReviews Int   @default(0)

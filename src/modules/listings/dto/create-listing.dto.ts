@@ -4,10 +4,16 @@ import {
   IsOptional,
   IsPositive,
   IsString,
-  IsUrl,
   MaxLength,
   MinLength,
 } from 'class-validator';
+
+export type ListingImageInputDto =
+  | string
+  | {
+      url: string;
+      publicId?: string;
+    };
 
 export class CreateListingDto {
   @IsString()
@@ -41,6 +47,5 @@ export class CreateListingDto {
 
   @IsOptional()
   @IsArray()
-  @IsUrl({}, { each: true })
-  images?: string[];
+  images?: ListingImageInputDto[];
 }
