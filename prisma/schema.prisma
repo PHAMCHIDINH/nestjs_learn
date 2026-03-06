@@ -1,0 +1,268 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum Department {
+  CNTT
+  KINHTOE
+  MARKETING
+  NGOAINGU
+  LUAT
+  QUANLY
+  KYTHUAT
+}
+
+enum Condition {
+  NEW
+  LIKE_NEW
+  GOOD
+  FAIR
+}
+
+enum ListingStatus {
+  SELLING
+  RESERVED
+  SOLD
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum OtpType {
+  REGISTER
+  RESET_PASSWORD
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+}
+
+model User {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  studentId    String      @unique
+  passwordHash String
+
+  name       String
+  avatarUrl  String?
+  department Department?
+
+  sellerRating Float @default(0)
+  totalReviews Int   @default(0)
+
+  isVerified Boolean  @default(false)
+  isActive   Boolean  @default(true)
+  role       UserRole @default(USER)
+  lastSeen   DateTime?
+  isOnline   Boolean  @default(false)
+
+  listings                 Listing[]                 @relation("SellerListings")
+  favorites                Favorite[]
+  reports                  Report[]                  @relation("ReporterReports")
+  conversationParticipants ConversationParticipant[]
+  sentMessages             Message[]                 @relation("SenderMessages")
+  reviewsReceived          Review[]                  @relation("SellerReviews")
+  reviewsGiven             Review[]                  @relation("ReviewerReviews")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([studentId])
+  @@index([role])
+  @@map("users")
+}
+
+model OtpVerification {
+  id        String   @id @default(cuid())
+  email     String
+  code      String
+  type      OtpType
+  expiresAt DateTime
+  used      Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([email, type])
+  @@map("otp_verifications")
+}
+
+model Category {
+  id   String  @id @default(cuid())
+  name String
+  slug String  @unique
+  icon String?
+
+  listings Listing[]
+
+  @@index([name])
+  @@map("categories")
+}
+
+model Listing {
+  id            String         @id @default(cuid())
+  title         String
+  description   String
+  price         Int
+  originalPrice Int?
+  condition     Condition
+  status        ListingStatus  @default(SELLING)
+  approvalStatus ApprovalStatus @default(PENDING)
+  department    Department?
+  slug          String         @unique
+  viewCount     Int            @default(0)
+
+  seller     User     @relation("SellerListings", fields: [sellerId], references: [id])
+  sellerId   String
+  category   Category @relation(fields: [categoryId], references: [id])
+  categoryId String
+
+  images        ListingImage[]
+  favorites     Favorite[]
+  reports       Report[]
+  conversations Conversation[]
+  reviews       Review[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sellerId])
+  @@index([status, approvalStatus, categoryId])
+  @@index([department])
+  @@index([createdAt(sort: Desc)])
+  @@index([approvalStatus, createdAt(sort: Desc)])
+  @@map("listings")
+}
+
+model ListingImage {
+  id       String  @id @default(cuid())
+  url      String
+  publicId String?
+  order    Int     @default(0)
+
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listingId String
+
+  @@index([listingId])
+  @@map("listing_images")
+}
+
+model Conversation {
+  id            String    @id @default(cuid())
+  lastMessageAt DateTime?
+
+  listing   Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  listingId String?
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  createdAt DateTime @default(now())
+
+  @@index([lastMessageAt(sort: Desc)])
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id         String    @id @default(cuid())
+  lastReadAt DateTime?
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  user           User         @relation(fields: [userId], references: [id])
+  userId         String
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id       String      @id @default(cuid())
+  content  String?
+  imageUrl String?
+  type     MessageType @default(TEXT)
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  sender         User         @relation("SenderMessages", fields: [senderId], references: [id])
+  senderId       String
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+model Favorite {
+  id String @id @default(cuid())
+
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listingId String
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, listingId])
+  @@index([listingId])
+  @@map("favorites")
+}
+
+model Report {
+  id     String       @id @default(cuid())
+  reason String
+  status ReportStatus @default(PENDING)
+
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listingId String
+
+  reportedBy   User   @relation("ReporterReports", fields: [reportedById], references: [id], onDelete: Cascade)
+  reportedById String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([listingId])
+  @@map("reports")
+}
+
+model Review {
+  id      String  @id @default(cuid())
+  rating  Int
+  comment String?
+
+  listing    Listing @relation(fields: [listingId], references: [id])
+  listingId  String
+  seller     User    @relation("SellerReviews", fields: [sellerId], references: [id])
+  sellerId   String
+  reviewer   User    @relation("ReviewerReviews", fields: [reviewerId], references: [id])
+  reviewerId String
+
+  createdAt DateTime @default(now())
+
+  @@unique([listingId, reviewerId])
+  @@index([sellerId])
+  @@map("reviews")
+}

@@ -55,7 +55,20 @@ Services:
 - Backend: `http://localhost:3000`
 - PostgreSQL: `localhost:5432`
 
-The backend container runs database migrations automatically before starting.
+The backend container syncs the Prisma schema automatically before starting.
+
+## SMTP Configuration for OTP Email
+
+Set these variables in `backend-repo/.env` (or your shell env before `docker compose up`):
+
+```bash
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-smtp-user
+SMTP_PASS=your-smtp-password
+SMTP_FROM="Cho Sinh Vien <no-reply@example.com>"
+```
 
 Quick API test:
 
@@ -63,13 +76,18 @@ Quick API test:
 # health
 $ curl http://localhost:3000/health
 
-# create user
-$ curl -X POST http://localhost:3000/users \
+# register
+$ curl -X POST http://localhost:3000/auth/register \
   -H "Content-Type: application/json" \
-  -d "{\"name\":\"Alice\",\"email\":\"alice@example.com\"}"
+  -d "{\"email\":\"alice@student.edu.vn\",\"password\":\"password123\",\"name\":\"Alice\",\"studentId\":\"20219999\",\"department\":\"cntt\"}"
 
-# list users
-$ curl http://localhost:3000/users
+# verify OTP (use code from email inbox, or debugOtp in dev mode)
+$ curl -X POST http://localhost:3000/auth/verify-otp \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"alice@student.edu.vn\",\"code\":\"123456\"}"
+
+# list listings
+$ curl "http://localhost:3000/listings?page=1&limit=20"
 ```
 
 Stop:
