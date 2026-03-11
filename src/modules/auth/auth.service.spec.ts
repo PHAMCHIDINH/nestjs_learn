@@ -137,12 +137,21 @@ const createPrismaMock = (initialState: DbState) => {
   };
 };
 
+const createMailServiceMock = (manual = false) => ({
+  sendOtpEmail: jest.fn().mockResolvedValue(undefined),
+  isManualOtpDelivery: jest.fn().mockReturnValue(manual),
+});
+
 describe('AuthService', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
   it('register commits user and otp when email send succeeds', async () => {
     const prismaMock = createPrismaMock({ users: [], otps: [] });
-    const mailServiceMock = {
-      sendOtpEmail: jest.fn().mockResolvedValue(undefined),
-    };
+    const mailServiceMock = createMailServiceMock(false);
     const authService = new AuthService(
       prismaMock as never,
       { sign: jest.fn() } as never,
@@ -170,15 +179,13 @@ describe('AuthService', () => {
     );
   });
 
-  it('register rolls back user and otp when email send fails', async () => {
+  it('register keeps user and otp when email send fails after transaction commits', async () => {
     const prismaMock = createPrismaMock({ users: [], otps: [] });
-    const mailServiceMock = {
-      sendOtpEmail: jest
-        .fn()
-        .mockRejectedValue(
-          new ServiceUnavailableException('Unable to send OTP email'),
-        ),
-    };
+    const mailServiceMock = createMailServiceMock(false);
+    mailServiceMock.sendOtpEmail.mockRejectedValue(
+      new ServiceUnavailableException('Unable to send OTP email'),
+    );
+
     const authService = new AuthService(
       prismaMock as never,
       { sign: jest.fn() } as never,
@@ -199,11 +206,11 @@ describe('AuthService', () => {
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
 
     const state = prismaMock.getState();
-    expect(state.users).toHaveLength(0);
-    expect(state.otps).toHaveLength(0);
+    expect(state.users).toHaveLength(1);
+    expect(state.otps).toHaveLength(1);
   });
 
-  it('resendOtp rolls back otp when email send fails', async () => {
+  it('resendOtp keeps otp when email send fails after transaction commits', async () => {
     const prismaMock = createPrismaMock({
       users: [
         createUser({
@@ -215,13 +222,11 @@ describe('AuthService', () => {
       ],
       otps: [],
     });
-    const mailServiceMock = {
-      sendOtpEmail: jest
-        .fn()
-        .mockRejectedValue(
-          new ServiceUnavailableException('Unable to send OTP email'),
-        ),
-    };
+    const mailServiceMock = createMailServiceMock(false);
+    mailServiceMock.sendOtpEmail.mockRejectedValue(
+      new ServiceUnavailableException('Unable to send OTP email'),
+    );
+
     const authService = new AuthService(
       prismaMock as never,
       { sign: jest.fn() } as never,
@@ -239,6 +244,64 @@ describe('AuthService', () => {
 
     const state = prismaMock.getState();
     expect(state.users).toHaveLength(1);
-    expect(state.otps).toHaveLength(0);
+    expect(state.otps).toHaveLength(1);
+  });
+
+  it('register returns debugOtp and skips email in manual mode even in production', async () => {
+    process.env.NODE_ENV = 'production';
+
+    const prismaMock = createPrismaMock({ users: [], otps: [] });
+    const mailServiceMock = createMailServiceMock(true);
+    const authService = new AuthService(
+      prismaMock as never,
+      { sign: jest.fn() } as never,
+      mailServiceMock as never,
+    );
+
+    const result = await authService.register(
+      {
+        email: 'student4@example.com',
+        password: 'password123',
+        name: 'Student Four',
+        studentId: 'SV1004',
+        department: 'cntt',
+      },
+      'req-4',
+    );
+
+    expect(result.debugOtp).toMatch(/^\d{6}$/);
+    expect(mailServiceMock.sendOtpEmail).not.toHaveBeenCalled();
+  });
+
+  it('resendOtp returns debugOtp and skips email in manual mode even in production', async () => {
+    process.env.NODE_ENV = 'production';
+
+    const prismaMock = createPrismaMock({
+      users: [
+        createUser({
+          id: 'user-manual',
+          email: 'student5@example.com',
+          studentId: 'SV1005',
+          isVerified: false,
+        }),
+      ],
+      otps: [],
+    });
+    const mailServiceMock = createMailServiceMock(true);
+    const authService = new AuthService(
+      prismaMock as never,
+      { sign: jest.fn() } as never,
+      mailServiceMock as never,
+    );
+
+    const result = await authService.resendOtp(
+      {
+        email: 'student5@example.com',
+      },
+      'req-5',
+    );
+
+    expect(result.debugOtp).toMatch(/^\d{6}$/);
+    expect(mailServiceMock.sendOtpEmail).not.toHaveBeenCalled();
   });
 });

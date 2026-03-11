@@ -66,12 +66,18 @@ Services:
 
 The backend container syncs the Prisma schema automatically before starting.
 
-## SMTP Configuration for OTP Email
+## Email Configuration for OTP
 
 Set these variables in `backend-repo/.env` (or your shell env before `docker compose up`):
 
 ```bash
+OTP_DELIVERY_MODE=email
+MAIL_PROVIDER=auto
 MAIL_FROM="Cho Sinh Vien <no-reply@example.com>"
+RESEND_API_KEY=
+RESEND_API_BASE_URL=https://api.resend.com
+
+# SMTP only
 SMTP_HOST=smtp.example.com
 SMTP_PORT=587
 SMTP_FAMILY=4
@@ -88,7 +94,10 @@ SMTP_VERIFY_ON_STARTUP=false
 ```
 
 Notes:
-- In `NODE_ENV=production`, backend startup fails fast only when SMTP config is invalid (for example missing `MAIL_FROM` / `SMTP_HOST`).
+- `OTP_DELIVERY_MODE=manual` tam thoi bo qua email va tra `debugOtp` cho client o moi moi truong. Chi dung cho demo/test vi OTP se lo ra phia frontend.
+- `MAIL_PROVIDER=auto` prefers Resend when `RESEND_API_KEY` is present, otherwise it falls back to SMTP when `SMTP_HOST` is configured.
+- On Railway, prefer Resend because it uses HTTPS and avoids SMTP connectivity limits that commonly cause OTP requests to hang before returning `503`.
+- In `NODE_ENV=production`, backend startup fails fast only when the selected mail provider config is invalid.
 - If SMTP server is temporarily unreachable, backend continues running by default; set `SMTP_FAIL_FAST=true` to force startup failure on SMTP `verify` errors.
 - `SMTP_VERIFY_ON_STARTUP=false` (default) skips blocking SMTP verify during boot to avoid startup delay/timeouts on platforms with cold starts.
 - Set `SMTP_FAMILY=4` when your runtime cannot route IPv6 (common on some PaaS environments).
@@ -121,7 +130,7 @@ $ curl -X POST http://localhost:3000/auth/register \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"alice@student.edu.vn\",\"password\":\"password123\",\"name\":\"Alice\",\"studentId\":\"20219999\",\"department\":\"cntt\"}"
 
-# verify OTP (use code from email inbox, or debugOtp in dev mode)
+# verify OTP (use code from email inbox, or debugOtp in dev/manual mode)
 $ curl -X POST http://localhost:3000/auth/verify-otp \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"alice@student.edu.vn\",\"code\":\"123456\"}"

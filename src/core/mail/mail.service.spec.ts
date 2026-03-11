@@ -23,11 +23,14 @@ const createConfigService = (env: EnvMap): ConfigService =>
     }),
   }) as unknown as ConfigService;
 
-describe('MailService (SMTP)', () => {
+describe('MailService', () => {
   const createTransportMock = nodemailer.createTransport as jest.Mock;
+  const fetchMock = jest.fn();
 
   beforeEach(() => {
     createTransportMock.mockReset();
+    fetchMock.mockReset();
+    global.fetch = fetchMock as unknown as typeof fetch;
     jest.restoreAllMocks();
   });
 
@@ -77,6 +80,84 @@ describe('MailService (SMTP)', () => {
         to: 'student@example.com',
       }),
     );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('uses Resend automatically when RESEND_API_KEY is configured', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: jest.fn().mockResolvedValue(''),
+    });
+
+    const service = new MailService(
+      createConfigService({
+        NODE_ENV: 'production',
+        RESEND_API_KEY: 're_test_key',
+        MAIL_FROM: 'Cho Sinh Vien <no-reply@example.com>',
+      }),
+    );
+
+    await service.onModuleInit();
+    await service.sendOtpEmail('student@example.com', '654321', {
+      requestId: 'req-2',
+    });
+
+    expect(createTransportMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.resend.com/emails',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer re_test_key',
+        }),
+      }),
+    );
+  });
+
+  it('skips mail provider setup entirely in manual OTP mode', async () => {
+    const service = new MailService(
+      createConfigService({
+        NODE_ENV: 'production',
+        OTP_DELIVERY_MODE: 'manual',
+      }),
+    );
+
+    await expect(service.onModuleInit()).resolves.toBeUndefined();
+    await expect(
+      service.sendOtpEmail('student@example.com', '123456', {
+        requestId: 'req-manual',
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(createTransportMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(service.isManualOtpDelivery()).toBe(true);
+  });
+
+  it('throws 503 when Resend returns an error', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 403,
+      text: jest.fn().mockResolvedValue('forbidden'),
+    });
+
+    const service = new MailService(
+      createConfigService({
+        NODE_ENV: 'production',
+        MAIL_PROVIDER: 'resend',
+        RESEND_API_KEY: 're_test_key',
+        MAIL_FROM: 'no-reply@example.com',
+      }),
+    );
+
+    await service.onModuleInit();
+
+    await expect(
+      service.sendOtpEmail('student@example.com', '123456', {
+        requestId: 'req-3',
+      }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
   it('throws 503 when SMTP provider returns an error', async () => {
@@ -105,7 +186,7 @@ describe('MailService (SMTP)', () => {
 
     await expect(
       service.sendOtpEmail('student@example.com', '123456', {
-        requestId: 'req-2',
+        requestId: 'req-4',
       }),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
@@ -135,7 +216,7 @@ describe('MailService (SMTP)', () => {
     await expect(service.onModuleInit()).resolves.toBeUndefined();
     await expect(
       service.sendOtpEmail('student@example.com', '123456', {
-        requestId: 'req-3',
+        requestId: 'req-5',
       }),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });

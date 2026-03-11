@@ -20,4 +20,4 @@ COPY --from=build /app/prisma.config.ts ./prisma.config.ts
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "npm run db:push && node dist/src/main.js"]
+CMD ["node", "dist/src/main.js"]

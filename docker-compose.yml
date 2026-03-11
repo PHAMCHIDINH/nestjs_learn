@@ -22,6 +22,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: backend_app
+    command: sh -c "npm run db:push && node dist/src/main.js"
     restart: unless-stopped
     depends_on:
       postgres:
@@ -29,7 +30,9 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      OTP_EXPIRES_MINUTES: ${OTP_EXPIRES_MINUTES:-5}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001,http://127.0.0.1:3001}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3001}
       DATABASE_URL: postgresql://app_user:app_password@postgres:5432/app_db?schema=public
       JWT_SECRET: change-me-in-production
       MAIL_FROM: ${MAIL_FROM:-}
@@ -50,6 +53,7 @@ services:
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
       CLOUDINARY_FOLDER: ${CLOUDINARY_FOLDER:-cho-sinh-vien/listings}
+      CLOUDINARY_AVATAR_FOLDER: ${CLOUDINARY_AVATAR_FOLDER:-cho-sinh-vien/avatars}
     ports:
       - "3000:3000"
 

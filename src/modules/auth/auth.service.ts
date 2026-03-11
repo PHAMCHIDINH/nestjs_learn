@@ -93,14 +93,16 @@ export class AuthService {
       { timeout: 20_000 },
     );
 
-    await this.mailService.sendOtpEmail(email, otpCode, {
-      requestId,
-    });
+    if (!this.mailService.isManualOtpDelivery()) {
+      await this.mailService.sendOtpEmail(email, otpCode, {
+        requestId,
+      });
+    }
 
     return {
       message: 'OTP sent successfully',
       email,
-      debugOtp: process.env.NODE_ENV === 'production' ? undefined : otpCode,
+      debugOtp: this.shouldExposeDebugOtp() ? otpCode : undefined,
       user: mapUserToFrontend(user),
     };
   }
@@ -128,14 +130,16 @@ export class AuthService {
       { timeout: 20_000 },
     );
 
-    await this.mailService.sendOtpEmail(email, otpCode, {
-      requestId,
-    });
+    if (!this.mailService.isManualOtpDelivery()) {
+      await this.mailService.sendOtpEmail(email, otpCode, {
+        requestId,
+      });
+    }
 
     return {
       message: 'OTP resent successfully',
       email,
-      debugOtp: process.env.NODE_ENV === 'production' ? undefined : otpCode,
+      debugOtp: this.shouldExposeDebugOtp() ? otpCode : undefined,
     };
   }
 
@@ -299,6 +303,13 @@ export class AuthService {
       {
         expiresIn: JWT_EXPIRES_IN,
       },
+    );
+  }
+
+  private shouldExposeDebugOtp(): boolean {
+    return (
+      this.mailService.isManualOtpDelivery() ||
+      process.env.NODE_ENV !== 'production'
     );
   }
 
