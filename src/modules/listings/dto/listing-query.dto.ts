@@ -1,5 +1,31 @@
-import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsArray,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
+
+const toArray = (value: unknown): string[] | undefined => {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === 'string' ? item.trim() : ''))
+      .filter(Boolean);
+  }
+
+  if (typeof value === 'string') {
+    return [value.trim()].filter(Boolean);
+  }
+
+  return undefined;
+};
 
 export class ListingQueryDto {
   @IsOptional()
@@ -11,12 +37,30 @@ export class ListingQueryDto {
   category?: string;
 
   @IsOptional()
+  @Transform(({ value }) => toArray(value))
+  @IsArray()
+  @IsString({ each: true })
+  categories?: string[];
+
+  @IsOptional()
   @IsString()
   condition?: string;
 
   @IsOptional()
+  @Transform(({ value }) => toArray(value))
+  @IsArray()
+  @IsString({ each: true })
+  conditions?: string[];
+
+  @IsOptional()
   @IsString()
   department?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => toArray(value))
+  @IsArray()
+  @IsString({ each: true })
+  departments?: string[];
 
   @IsOptional()
   @IsString()

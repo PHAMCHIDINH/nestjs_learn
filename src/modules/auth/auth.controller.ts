@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -15,7 +16,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { AuthService } from './auth.service';
@@ -29,6 +30,10 @@ type AuthUser = {
   role: string;
 };
 
+type RequestWithId = Request & {
+  requestId?: string;
+};
+
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
@@ -38,16 +43,16 @@ export class AuthController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register account and send OTP' })
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  register(@Body() payload: RegisterDto) {
-    return this.authService.register(payload);
+  register(@Body() payload: RegisterDto, @Req() request: RequestWithId) {
+    return this.authService.register(payload, request.requestId);
   }
 
   @Post('resend-otp')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Resend OTP to unverified account' })
   @Throttle({ default: { limit: 5, ttl: 10 * 60_000 } })
-  resendOtp(@Body() payload: ResendOtpDto) {
-    return this.authService.resendOtp(payload);
+  resendOtp(@Body() payload: ResendOtpDto, @Req() request: RequestWithId) {
+    return this.authService.resendOtp(payload, request.requestId);
   }
 
   @Post('verify-otp')

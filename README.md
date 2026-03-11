@@ -71,13 +71,18 @@ The backend container syncs the Prisma schema automatically before starting.
 Set these variables in `backend-repo/.env` (or your shell env before `docker compose up`):
 
 ```bash
+MAIL_FROM="Cho Sinh Vien <no-reply@example.com>"
 SMTP_HOST=smtp.example.com
 SMTP_PORT=587
 SMTP_SECURE=false
-SMTP_USER=your-smtp-user
+SMTP_REQUIRE_TLS=false
+SMTP_USER=your-smtp-username
 SMTP_PASS=your-smtp-password
-SMTP_FROM="Cho Sinh Vien <no-reply@example.com>"
 ```
+
+Notes:
+- In `NODE_ENV=production`, backend startup fails fast if SMTP config is invalid or `MAIL_FROM` is missing.
+- You can omit `SMTP_USER`/`SMTP_PASS` only when your SMTP relay allows unauthenticated sends.
 
 ## Cloudinary Configuration for Listing Images
 

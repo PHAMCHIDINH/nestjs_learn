@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -190,6 +191,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
     }
     if (error instanceof BadRequestException) {
       return 'BAD_REQUEST';
+    }
+    if (error instanceof ForbiddenException) {
+      return 'FORBIDDEN';
     }
     return 'SEND_FAILED';
   }

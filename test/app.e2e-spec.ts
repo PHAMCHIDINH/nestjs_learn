@@ -1,10 +1,14 @@
-import { INestApplication } from '@nestjs/common';
+import {
+  INestApplication,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/core/database/prisma.service';
+import { MailService } from '../src/core/mail/mail.service';
 import { CloudinaryService } from '../src/core/media/cloudinary.service';
 
 type MockUser = {
@@ -44,11 +48,14 @@ const prismaMock = {
   $queryRawUnsafe: jest.fn().mockResolvedValue([{ '?column?': 1 }]),
   $connect: jest.fn().mockResolvedValue(undefined),
   $disconnect: jest.fn().mockResolvedValue(undefined),
-  $transaction: jest.fn().mockImplementation(async (queries: unknown[]) => {
-    if (Array.isArray(queries)) {
-      return Promise.all(queries as Promise<unknown>[]);
+  $transaction: jest.fn().mockImplementation(async (input: unknown) => {
+    if (typeof input === 'function') {
+      return input(prismaMock);
     }
-    return [];
+    if (Array.isArray(input)) {
+      return Promise.all(input as Promise<unknown>[]);
+    }
+    return undefined;
   }),
   user: {
     findMany: jest.fn().mockImplementation(async () => [{ ...currentUser }]),
@@ -72,11 +79,14 @@ const prismaMock = {
       name: data.name,
       email: data.email,
       studentId: data.studentId,
+      passwordHash: data.passwordHash ?? '$2a$10$hashhashhashhashhashhashhash',
       department: data.department ?? 'CNTT',
       avatarUrl: null,
       avatarPublicId: null,
-      isVerified: true,
+      isVerified: false,
+      isActive: true,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
       lastSeen: null,
       isOnline: false,
       role: 'USER',
@@ -99,9 +109,25 @@ const prismaMock = {
       if (patch.avatarPublicId !== undefined) {
         currentUser.avatarPublicId = patch.avatarPublicId as string | null;
       }
+      if (patch.isVerified !== undefined) {
+        currentUser.isVerified = Boolean(patch.isVerified);
+      }
 
       return { ...currentUser };
     }),
+  },
+  otpVerification: {
+    create: jest.fn().mockImplementation(async ({ data }) => ({
+      id: `otp-${Math.random().toString(36).slice(2, 8)}`,
+      email: data.email,
+      code: data.code,
+      type: data.type,
+      expiresAt: data.expiresAt,
+      used: false,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    })),
+    update: jest.fn().mockResolvedValue(undefined),
+    findFirst: jest.fn().mockResolvedValue(null),
   },
   listing: {
     count: jest.fn().mockResolvedValue(0),
@@ -120,6 +146,10 @@ const cloudinaryMock = {
   destroyImage: jest.fn().mockResolvedValue(undefined),
 };
 
+const mailServiceMock = {
+  sendOtpEmail: jest.fn().mockResolvedValue(undefined),
+};
+
 type HealthResponseBody = {
   status?: string;
   details?: {
@@ -136,8 +166,14 @@ describe('App e2e', () => {
 
   beforeAll(async () => {
     jest.setTimeout(20_000);
+    process.env.NODE_ENV = 'test';
     process.env.SMTP_HOST = '';
-    process.env.SMTP_FROM = '';
+    process.env.SMTP_PORT = '587';
+    process.env.SMTP_SECURE = 'false';
+    process.env.SMTP_REQUIRE_TLS = 'false';
+    process.env.SMTP_USER = '';
+    process.env.SMTP_PASS = '';
+    process.env.MAIL_FROM = '';
     process.env.JWT_SECRET = 'dev-secret';
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -147,6 +183,8 @@ describe('App e2e', () => {
       .useValue(prismaMock)
       .overrideProvider(CloudinaryService)
       .useValue(cloudinaryMock)
+      .overrideProvider(MailService)
+      .useValue(mailServiceMock)
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -195,6 +233,50 @@ describe('App e2e', () => {
       expect([200, 503]).toContain(response.status);
       expect(body.status).toEqual(expect.any(String));
       expect(body.details?.database?.status).toEqual(expect.any(String));
+    });
+  });
+
+  describe('auth register', () => {
+    it('POST /auth/register should return 201 when OTP email send succeeds', async () => {
+      mailServiceMock.sendOtpEmail.mockResolvedValueOnce(undefined);
+
+      const response = await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({
+          email: 'register-success@example.com',
+          password: 'password123',
+          name: 'Register Success',
+          studentId: 'SV1001',
+          department: 'cntt',
+        })
+        .expect(201);
+
+      expect(response.body).toMatchObject({
+        message: 'OTP sent successfully',
+        email: 'register-success@example.com',
+      });
+    });
+
+    it('POST /auth/register should return 503 when OTP email send fails', async () => {
+      mailServiceMock.sendOtpEmail.mockRejectedValueOnce(
+        new ServiceUnavailableException('Unable to send OTP email'),
+      );
+
+      const response = await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({
+          email: 'register-fail@example.com',
+          password: 'password123',
+          name: 'Register Fail',
+          studentId: 'SV1002',
+          department: 'cntt',
+        })
+        .expect(503);
+
+      expect(response.body).toMatchObject({
+        statusCode: 503,
+        message: 'Unable to send OTP email',
+      });
     });
   });
 

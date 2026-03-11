@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { ApprovalStatus, ReportStatus } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
+import { ListingQueryDto } from '../listings/dto/listing-query.dto';
 import { mapListingToFrontend } from '../listings/listing.mapper';
 import { mapUserToFrontend } from '../users/user.mapper';
 
@@ -12,19 +13,34 @@ import { mapUserToFrontend } from '../users/user.mapper';
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async pendingListings() {
-    const listings = await this.prisma.listing.findMany({
-      where: { approvalStatus: ApprovalStatus.PENDING },
-      include: {
-        seller: true,
-        category: true,
-        images: { orderBy: { order: 'asc' } },
-        favorites: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+  async pendingListings(query: ListingQueryDto) {
+    const [total, listings] = await this.prisma.$transaction([
+      this.prisma.listing.count({
+        where: { approvalStatus: ApprovalStatus.PENDING },
+      }),
+      this.prisma.listing.findMany({
+        where: { approvalStatus: ApprovalStatus.PENDING },
+        include: {
+          seller: true,
+          category: true,
+          images: { orderBy: { order: 'asc' } },
+          favorites: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+    ]);
 
-    return listings.map((listing) => mapListingToFrontend(listing));
+    return {
+      data: listings.map((listing) => mapListingToFrontend(listing)),
+      meta: {
+        total,
+        page: query.page,
+        limit: query.limit,
+        totalPages: Math.ceil(total / query.limit),
+      },
+    };
   }
 
   async approveListing(id: string) {
@@ -55,38 +71,51 @@ export class AdminService {
     return { message: 'Listing rejected' };
   }
 
-  async reports(status?: string) {
-    const where = status
+  async reports(query: ListingQueryDto) {
+    const where = query.status
       ? {
-          status: this.parseReportStatus(status),
+          status: this.parseReportStatus(query.status),
         }
       : undefined;
 
-    const reports = await this.prisma.report.findMany({
-      where,
-      include: {
-        listing: {
-          include: {
-            seller: true,
-            category: true,
-            images: { orderBy: { order: 'asc' } },
-            favorites: true,
+    const [total, reports] = await this.prisma.$transaction([
+      this.prisma.report.count({ where }),
+      this.prisma.report.findMany({
+        where,
+        include: {
+          listing: {
+            include: {
+              seller: true,
+              category: true,
+              images: { orderBy: { order: 'asc' } },
+              favorites: true,
+            },
           },
+          reportedBy: true,
         },
-        reportedBy: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+    ]);
 
-    return reports.map((report) => ({
-      id: report.id,
-      reason: report.reason,
-      status: report.status.toLowerCase(),
-      createdAt: report.createdAt,
-      productId: report.listingId,
-      product: mapListingToFrontend(report.listing),
-      reportedBy: mapUserToFrontend(report.reportedBy),
-    }));
+    return {
+      data: reports.map((report) => ({
+        id: report.id,
+        reason: report.reason,
+        status: report.status.toLowerCase(),
+        createdAt: report.createdAt,
+        productId: report.listingId,
+        product: mapListingToFrontend(report.listing),
+        reportedBy: mapUserToFrontend(report.reportedBy),
+      })),
+      meta: {
+        total,
+        page: query.page,
+        limit: query.limit,
+        totalPages: Math.ceil(total / query.limit),
+      },
+    };
   }
 
   async resolveReport(id: string) {

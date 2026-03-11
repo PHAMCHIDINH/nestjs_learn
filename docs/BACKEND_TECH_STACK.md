@@ -83,14 +83,15 @@ Usage:
 
 ## 8. Background Integrations
 
-- Email transport: `nodemailer`
-- SMTP config via environment variables:
+- Email provider: SMTP relay via `nodemailer`
+- Email config via environment variables:
+  - `MAIL_FROM`
   - `SMTP_HOST`
   - `SMTP_PORT`
   - `SMTP_SECURE`
+  - `SMTP_REQUIRE_TLS`
   - `SMTP_USER`
   - `SMTP_PASS`
-  - `SMTP_FROM`
 
 ## 9. Testing and Quality
 
@@ -143,7 +144,7 @@ Auth and validation:
 
 Integrations:
 
-- `nodemailer`
+- `nodemailer` via SMTP relay
 
 ## 12. Known Direction
 

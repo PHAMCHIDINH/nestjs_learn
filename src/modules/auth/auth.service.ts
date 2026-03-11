@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Department, OtpType } from '@prisma/client';
+import { Department, OtpType, Prisma } from '@prisma/client';
 import type { Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { PrismaService } from '../../core/database/prisma.service';
@@ -37,7 +37,7 @@ export class AuthService {
     private readonly mailService: MailService,
   ) {}
 
-  async register(payload: RegisterDto) {
+  async register(payload: RegisterDto, requestId?: string) {
     const email = payload.email.trim().toLowerCase();
     const studentId = payload.studentId.trim();
     let department: Department;
@@ -47,46 +47,54 @@ export class AuthService {
       throw new BadRequestException('Invalid department value');
     }
 
-    const existingByEmail = await this.prisma.user.findUnique({
-      where: { email },
-    });
-    const existingByStudentId = await this.prisma.user.findUnique({
-      where: { studentId },
-    });
-
-    if (existingByStudentId && existingByStudentId.email !== email) {
-      throw new ConflictException('studentId already exists');
-    }
-
-    if (existingByEmail?.isVerified) {
-      throw new ConflictException('email already exists');
-    }
-
     const passwordHash = await bcrypt.hash(payload.password, 10);
-
-    const user = existingByEmail
-      ? await this.prisma.user.update({
-          where: { id: existingByEmail.id },
-          data: {
-            name: payload.name.trim(),
-            studentId,
-            department,
-            passwordHash,
-            isVerified: false,
-          },
-        })
-      : await this.prisma.user.create({
-          data: {
-            email,
-            studentId,
-            name: payload.name.trim(),
-            department,
-            passwordHash,
-          },
+    const { user, otpCode } = await this.prisma.$transaction(
+      async (tx) => {
+        const existingByEmail = await tx.user.findUnique({
+          where: { email },
+        });
+        const existingByStudentId = await tx.user.findUnique({
+          where: { studentId },
         });
 
-    const otpCode = await this.createOtp(email, OtpType.REGISTER);
-    await this.mailService.sendOtpEmail(email, otpCode);
+        if (existingByStudentId && existingByStudentId.email !== email) {
+          throw new ConflictException('studentId already exists');
+        }
+
+        if (existingByEmail?.isVerified) {
+          throw new ConflictException('email already exists');
+        }
+
+        const user = existingByEmail
+          ? await tx.user.update({
+              where: { id: existingByEmail.id },
+              data: {
+                name: payload.name.trim(),
+                studentId,
+                department,
+                passwordHash,
+                isVerified: false,
+              },
+            })
+          : await tx.user.create({
+              data: {
+                email,
+                studentId,
+                name: payload.name.trim(),
+                department,
+                passwordHash,
+              },
+            });
+
+        const otpCode = await this.createOtp(tx, email, OtpType.REGISTER);
+        await this.mailService.sendOtpEmail(email, otpCode, {
+          requestId,
+        });
+
+        return { user, otpCode };
+      },
+      { timeout: 20_000 },
+    );
 
     return {
       message: 'OTP sent successfully',
@@ -96,23 +104,31 @@ export class AuthService {
     };
   }
 
-  async resendOtp(payload: ResendOtpDto) {
+  async resendOtp(payload: ResendOtpDto, requestId?: string) {
     const email = payload.email.trim().toLowerCase();
 
-    const user = await this.prisma.user.findUnique({
-      where: { email },
-    });
+    const otpCode = await this.prisma.$transaction(
+      async (tx) => {
+        const user = await tx.user.findUnique({
+          where: { email },
+        });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+        if (!user) {
+          throw new NotFoundException('User not found');
+        }
 
-    if (user.isVerified) {
-      throw new BadRequestException('User is already verified');
-    }
+        if (user.isVerified) {
+          throw new BadRequestException('User is already verified');
+        }
 
-    const otpCode = await this.createOtp(email, OtpType.REGISTER);
-    await this.mailService.sendOtpEmail(email, otpCode);
+        const otpCode = await this.createOtp(tx, email, OtpType.REGISTER);
+        await this.mailService.sendOtpEmail(email, otpCode, {
+          requestId,
+        });
+        return otpCode;
+      },
+      { timeout: 20_000 },
+    );
 
     return {
       message: 'OTP resent successfully',
@@ -255,11 +271,15 @@ export class AuthService {
     return { message: 'Logged out successfully' };
   }
 
-  private async createOtp(email: string, type: OtpType): Promise<string> {
+  private async createOtp(
+    tx: Prisma.TransactionClient,
+    email: string,
+    type: OtpType,
+  ): Promise<string> {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    await this.prisma.otpVerification.create({
+    await tx.otpVerification.create({
       data: {
         email,
         code,

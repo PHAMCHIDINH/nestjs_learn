@@ -17,7 +17,7 @@ import {
 } from '../../listings/listing.mapper';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateMeDto } from '../dto/update-me.dto';
-import { mapUserToFrontend } from '../user.mapper';
+import { mapDepartmentToFrontend, mapUserToFrontend } from '../user.mapper';
 
 type AuthUser = {
   userId: string;
@@ -90,6 +90,42 @@ export class UsersService {
     }
 
     return mapUserToFrontend(user);
+  }
+
+  async findPublicProfile(id: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        avatarUrl: true,
+        department: true,
+        studentId: true,
+        isVerified: true,
+        sellerRating: true,
+        totalReviews: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      id: user.id,
+      name: user.name,
+      avatar: user.avatarUrl ?? undefined,
+      department: mapDepartmentToFrontend(user.department),
+      studentId: user.studentId,
+      isVerified: user.isVerified,
+      sellerRating: user.sellerRating,
+      totalReviews: user.totalReviews,
+      createdAt: user.createdAt,
+    };
   }
 
   async updateMe(authUser: AuthUser, payload: UpdateMeDto) {
@@ -269,6 +305,51 @@ export class UsersService {
         totalPages: Math.ceil(total / query.limit),
       },
     };
+  }
+
+  async blockUser(blockerId: string, blockedId: string) {
+    if (blockerId === blockedId) {
+      throw new BadRequestException('Cannot block yourself');
+    }
+
+    const blocked = await this.prisma.user.findFirst({
+      where: {
+        id: blockedId,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+
+    if (!blocked) {
+      throw new NotFoundException('User not found');
+    }
+
+    await this.prisma.userBlock.upsert({
+      where: {
+        blockerId_blockedId: {
+          blockerId,
+          blockedId,
+        },
+      },
+      update: {},
+      create: {
+        blockerId,
+        blockedId,
+      },
+    });
+
+    return { blocked: true };
+  }
+
+  async unblockUser(blockerId: string, blockedId: string) {
+    await this.prisma.userBlock.deleteMany({
+      where: {
+        blockerId,
+        blockedId,
+      },
+    });
+
+    return { blocked: false };
   }
 
   private ensureValidHttpUrl(value: string, field: string): string {

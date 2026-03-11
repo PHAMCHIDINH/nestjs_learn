@@ -219,11 +219,44 @@ export class ListingsService {
       data.slug = await this.generateSlug(payload.title, existing.id);
     }
 
-    const listing = await this.prisma.listing.update({
-      where: { id },
-      data,
-      include: this.listingInclude,
-    });
+    const normalizedImages =
+      payload.images !== undefined
+        ? this.normalizeImageInputs(payload.images)
+        : undefined;
+
+    const listing =
+      normalizedImages !== undefined
+        ? await this.prisma.$transaction(async (tx) => {
+            await tx.listing.update({
+              where: { id },
+              data,
+            });
+
+            await tx.listingImage.deleteMany({
+              where: { listingId: id },
+            });
+
+            if (normalizedImages.length > 0) {
+              await tx.listingImage.createMany({
+                data: normalizedImages.map((image, index) => ({
+                  listingId: id,
+                  url: image.url,
+                  publicId: image.publicId ?? null,
+                  order: index,
+                })),
+              });
+            }
+
+            return tx.listing.findUniqueOrThrow({
+              where: { id },
+              include: this.listingInclude,
+            });
+          })
+        : await this.prisma.listing.update({
+            where: { id },
+            data,
+            include: this.listingInclude,
+          });
 
     return mapListingToFrontend(listing, authUser.userId);
   }
@@ -347,26 +380,69 @@ export class ListingsService {
       ];
     }
 
-    if (query.category?.trim()) {
-      const category = await this.prisma.category.findUnique({
-        where: { slug: query.category.trim().toLowerCase() },
+    const categorySlugs = Array.from(
+      new Set(
+        [
+          ...(query.category?.trim() ? [query.category.trim()] : []),
+          ...(query.categories ?? []),
+        ]
+          .map((slug) => slug.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    );
+
+    if (categorySlugs.length > 0) {
+      const categories = await this.prisma.category.findMany({
+        where: {
+          slug: {
+            in: categorySlugs,
+          },
+        },
+        select: { id: true, slug: true },
       });
-      if (!category) {
+
+      if (categories.length !== categorySlugs.length) {
         throw new BadRequestException('Invalid category filter');
       }
-      where.categoryId = category.id;
+
+      where.categoryId =
+        categories.length === 1
+          ? categories[0].id
+          : {
+              in: categories.map((category) => category.id),
+            };
     }
 
-    if (query.condition?.trim()) {
-      where.condition = this.parseCondition(query.condition);
+    const conditions = Array.from(
+      new Set([
+        ...(query.condition?.trim() ? [query.condition.trim()] : []),
+        ...(query.conditions ?? []),
+      ]),
+    )
+      .filter(Boolean)
+      .map((value) => this.parseCondition(value));
+
+    if (conditions.length > 0) {
+      where.condition =
+        conditions.length === 1 ? conditions[0] : { in: conditions };
     }
 
     if (query.status?.trim()) {
       where.status = this.parseStatus(query.status);
     }
 
-    if (query.department?.trim()) {
-      where.department = this.parseDepartment(query.department);
+    const departments = Array.from(
+      new Set([
+        ...(query.department?.trim() ? [query.department.trim()] : []),
+        ...(query.departments ?? []),
+      ]),
+    )
+      .filter(Boolean)
+      .map((value) => this.parseDepartment(value));
+
+    if (departments.length > 0) {
+      where.department =
+        departments.length === 1 ? departments[0] : { in: departments };
     }
 
     if (query.minPrice !== undefined || query.maxPrice !== undefined) {

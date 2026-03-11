@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { ListingQueryDto } from '../listings/dto/listing-query.dto';
 import { AdminService } from './admin.service';
 
 @ApiTags('Admin')
@@ -15,8 +16,8 @@ export class AdminController {
 
   @Get('listings/pending')
   @ApiOperation({ summary: 'Get pending listings' })
-  pendingListings() {
-    return this.adminService.pendingListings();
+  pendingListings(@Query() query: ListingQueryDto) {
+    return this.adminService.pendingListings(query);
   }
 
   @Post('listings/:id/approve')
@@ -33,8 +34,8 @@ export class AdminController {
 
   @Get('reports')
   @ApiOperation({ summary: 'Get reports' })
-  reports(@Query('status') status?: string) {
-    return this.adminService.reports(status);
+  reports(@Query() query: ListingQueryDto) {
+    return this.adminService.reports(query);
   }
 
   @Post('reports/:id/resolve')

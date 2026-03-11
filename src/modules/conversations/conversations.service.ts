@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -229,6 +230,26 @@ export class ConversationsService {
       forcedType === 'image' || (!forcedType && imageUrl && !content)
         ? MessageType.IMAGE
         : MessageType.TEXT;
+
+    const recipientIds = conversation.participants
+      .map((participant) => participant.userId)
+      .filter((participantId) => participantId !== authUser.userId);
+
+    if (recipientIds.length > 0) {
+      const blockedByRecipient = await this.prisma.userBlock.findFirst({
+        where: {
+          blockerId: {
+            in: recipientIds,
+          },
+          blockedId: authUser.userId,
+        },
+        select: { id: true },
+      });
+
+      if (blockedByRecipient) {
+        throw new ForbiddenException('You are blocked by this user');
+      }
+    }
 
     const [message] = await this.prisma.$transaction([
       this.prisma.message.create({

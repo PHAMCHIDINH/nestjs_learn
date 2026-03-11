@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsInt,
   IsOptional,
   IsPositive,
@@ -6,6 +7,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { ListingImageInputDto } from './create-listing.dto';
 
 export class UpdateListingDto {
   @IsOptional()
@@ -45,4 +47,8 @@ export class UpdateListingDto {
   @IsOptional()
   @IsString()
   category?: string;
+
+  @IsOptional()
+  @IsArray()
+  images?: ListingImageInputDto[];
 }

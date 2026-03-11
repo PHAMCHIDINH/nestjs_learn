@@ -38,7 +38,7 @@ Huong dung la:
 - ORM / DB access: Prisma + PostgreSQL
 - Auth: JWT cookie/Bearer tu custom `AuthGuard`
 - Validation: `ValidationPipe` global
-- Mail: `nodemailer`
+- Mail: SMTP relay (`nodemailer`)
 
 ### 3.2 Nhung phan da co
 

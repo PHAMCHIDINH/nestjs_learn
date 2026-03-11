@@ -5,7 +5,7 @@ export class CreateReportDto {
   listingId: string;
 
   @IsString()
-  @MinLength(5)
+  @MinLength(5, { message: 'Vui lòng mô tả lý do báo cáo' })
   @MaxLength(500)
   reason: string;
 }
