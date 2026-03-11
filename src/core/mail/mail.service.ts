@@ -14,12 +14,14 @@ export class MailService implements OnModuleInit {
   private readonly logger = new Logger(MailService.name);
   private readonly smtpHost: string | null;
   private readonly smtpPort: number;
+  private readonly smtpFamily: number | undefined;
   private readonly smtpSecure: boolean;
   private readonly smtpRequireTLS: boolean;
   private readonly smtpUser: string | null;
   private readonly smtpPass: string | null;
   private readonly fromAddress: string | null;
   private readonly isProduction: boolean;
+  private readonly smtpFailFast: boolean;
   private transporter: Transporter | null = null;
 
   constructor(private readonly configService: ConfigService) {
@@ -27,6 +29,9 @@ export class MailService implements OnModuleInit {
     this.smtpPort = this.parseNumber(
       this.configService.get<string>('SMTP_PORT', '587'),
       587,
+    );
+    this.smtpFamily = this.parseFamily(
+      this.configService.get<string>('SMTP_FAMILY'),
     );
     this.smtpSecure = this.parseBoolean(
       this.configService.get<string>('SMTP_SECURE', 'false'),
@@ -43,6 +48,9 @@ export class MailService implements OnModuleInit {
         process.env.NODE_ENV ?? 'development',
       ) ===
       'production';
+    this.smtpFailFast = this.parseBoolean(
+      this.configService.get<string>('SMTP_FAIL_FAST', 'false'),
+    );
   }
 
   async onModuleInit() {
@@ -71,9 +79,15 @@ export class MailService implements OnModuleInit {
         error instanceof Error ? error.stack : undefined,
       );
 
-      if (this.isProduction) {
+      this.transporter = null;
+
+      if (this.isProduction && this.smtpFailFast) {
         throw new Error('SMTP provider verification failed at startup');
       }
+
+      this.logger.warn(
+        'SMTP is unavailable at startup. Application will continue, but OTP email delivery is disabled until SMTP recovers.',
+      );
     }
   }
 
@@ -155,9 +169,10 @@ export class MailService implements OnModuleInit {
       throw new Error('Missing SMTP_HOST');
     }
 
-    return nodemailer.createTransport({
+    const transportOptions = {
       host: this.smtpHost,
       port: this.smtpPort,
+      family: this.smtpFamily,
       secure: this.smtpSecure,
       requireTLS: this.smtpRequireTLS,
       auth:
@@ -167,7 +182,10 @@ export class MailService implements OnModuleInit {
               pass: this.smtpPass,
             }
           : undefined,
-    });
+    };
+
+    // nodemailer v8 typings can pick a generic transport overload here; force SMTP options.
+    return nodemailer.createTransport(transportOptions as any);
   }
 
   private parseBoolean(value?: string): boolean {
@@ -192,6 +210,22 @@ export class MailService implements OnModuleInit {
       );
       return fallback;
     }
+  }
+
+  private parseFamily(value?: string): number | undefined {
+    if (!value) {
+      return undefined;
+    }
+
+    const parsed = Number(value);
+    if (parsed === 4 || parsed === 6) {
+      return parsed;
+    }
+
+    this.logger.warn(
+      `Invalid SMTP_FAMILY value=${this.normalizeLogValue(value)}. Expected 4 or 6. Ignoring.`,
+    );
+    return undefined;
   }
 
   private normalizeLogValue(value: string): string {

@@ -45,6 +45,7 @@ describe('MailService (SMTP)', () => {
         NODE_ENV: 'production',
         SMTP_HOST: 'smtp.example.com',
         SMTP_PORT: '587',
+        SMTP_FAMILY: '4',
         SMTP_SECURE: 'false',
         SMTP_USER: 'user@example.com',
         SMTP_PASS: 'app-password',
@@ -61,6 +62,7 @@ describe('MailService (SMTP)', () => {
       expect.objectContaining({
         host: 'smtp.example.com',
         port: 587,
+        family: 4,
       }),
     );
     expect(verifyMock).toHaveBeenCalledTimes(1);
@@ -100,6 +102,62 @@ describe('MailService (SMTP)', () => {
         requestId: 'req-2',
       }),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it('does not crash startup in production when SMTP verify fails by default', async () => {
+    const verifyMock = jest.fn().mockRejectedValue(new Error('connect timeout'));
+    const sendMailMock = jest.fn();
+
+    createTransportMock.mockReturnValue({
+      verify: verifyMock,
+      sendMail: sendMailMock,
+    });
+
+    const service = new MailService(
+      createConfigService({
+        NODE_ENV: 'production',
+        SMTP_HOST: 'smtp.example.com',
+        SMTP_PORT: '587',
+        SMTP_SECURE: 'false',
+        SMTP_USER: 'user@example.com',
+        SMTP_PASS: 'app-password',
+        MAIL_FROM: 'no-reply@example.com',
+      }),
+    );
+
+    await expect(service.onModuleInit()).resolves.toBeUndefined();
+    await expect(
+      service.sendOtpEmail('student@example.com', '123456', {
+        requestId: 'req-3',
+      }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it('fails startup when SMTP_FAIL_FAST is true and verify fails', async () => {
+    const verifyMock = jest.fn().mockRejectedValue(new Error('connect timeout'));
+    const sendMailMock = jest.fn();
+
+    createTransportMock.mockReturnValue({
+      verify: verifyMock,
+      sendMail: sendMailMock,
+    });
+
+    const service = new MailService(
+      createConfigService({
+        NODE_ENV: 'production',
+        SMTP_FAIL_FAST: 'true',
+        SMTP_HOST: 'smtp.example.com',
+        SMTP_PORT: '587',
+        SMTP_SECURE: 'false',
+        SMTP_USER: 'user@example.com',
+        SMTP_PASS: 'app-password',
+        MAIL_FROM: 'no-reply@example.com',
+      }),
+    );
+
+    await expect(service.onModuleInit()).rejects.toThrow(
+      'SMTP provider verification failed at startup',
+    );
   });
 
   it('fails fast at startup in production when mail config is missing', async () => {

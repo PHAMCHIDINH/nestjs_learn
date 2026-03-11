@@ -74,14 +74,18 @@ Set these variables in `backend-repo/.env` (or your shell env before `docker com
 MAIL_FROM="Cho Sinh Vien <no-reply@example.com>"
 SMTP_HOST=smtp.example.com
 SMTP_PORT=587
+SMTP_FAMILY=4
 SMTP_SECURE=false
 SMTP_REQUIRE_TLS=false
 SMTP_USER=your-smtp-username
 SMTP_PASS=your-smtp-password
+SMTP_FAIL_FAST=false
 ```
 
 Notes:
-- In `NODE_ENV=production`, backend startup fails fast if SMTP config is invalid or `MAIL_FROM` is missing.
+- In `NODE_ENV=production`, backend startup fails fast only when SMTP config is invalid (for example missing `MAIL_FROM` / `SMTP_HOST`).
+- If SMTP server is temporarily unreachable, backend continues running by default; set `SMTP_FAIL_FAST=true` to force startup failure on SMTP `verify` errors.
+- Set `SMTP_FAMILY=4` when your runtime cannot route IPv6 (common on some PaaS environments).
 - You can omit `SMTP_USER`/`SMTP_PASS` only when your SMTP relay allows unauthenticated sends.
 
 ## Cloudinary Configuration for Listing Images
