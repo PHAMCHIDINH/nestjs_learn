@@ -80,11 +80,13 @@ SMTP_REQUIRE_TLS=false
 SMTP_USER=your-smtp-username
 SMTP_PASS=your-smtp-password
 SMTP_FAIL_FAST=false
+SMTP_VERIFY_ON_STARTUP=false
 ```
 
 Notes:
 - In `NODE_ENV=production`, backend startup fails fast only when SMTP config is invalid (for example missing `MAIL_FROM` / `SMTP_HOST`).
 - If SMTP server is temporarily unreachable, backend continues running by default; set `SMTP_FAIL_FAST=true` to force startup failure on SMTP `verify` errors.
+- `SMTP_VERIFY_ON_STARTUP=false` (default) skips blocking SMTP verify during boot to avoid startup delay/timeouts on platforms with cold starts.
 - Set `SMTP_FAMILY=4` when your runtime cannot route IPv6 (common on some PaaS environments).
 - You can omit `SMTP_USER`/`SMTP_PASS` only when your SMTP relay allows unauthenticated sends.
 

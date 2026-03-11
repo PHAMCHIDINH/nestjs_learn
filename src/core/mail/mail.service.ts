@@ -22,6 +22,7 @@ export class MailService implements OnModuleInit {
   private readonly fromAddress: string | null;
   private readonly isProduction: boolean;
   private readonly smtpFailFast: boolean;
+  private readonly smtpVerifyOnStartup: boolean;
   private transporter: Transporter | null = null;
 
   constructor(private readonly configService: ConfigService) {
@@ -51,6 +52,9 @@ export class MailService implements OnModuleInit {
     this.smtpFailFast = this.parseBoolean(
       this.configService.get<string>('SMTP_FAIL_FAST', 'false'),
     );
+    this.smtpVerifyOnStartup = this.parseBoolean(
+      this.configService.get<string>('SMTP_VERIFY_ON_STARTUP', 'false'),
+    );
   }
 
   async onModuleInit() {
@@ -71,6 +75,14 @@ export class MailService implements OnModuleInit {
 
     try {
       this.transporter = this.createTransporter();
+
+      if (!this.smtpVerifyOnStartup) {
+        this.logger.log(
+          'Skipping SMTP verify at startup (SMTP_VERIFY_ON_STARTUP=false).',
+        );
+        return;
+      }
+
       await this.verifyProvider();
       this.logger.log('SMTP mail provider is ready.');
     } catch (error) {

@@ -46,6 +46,7 @@ describe('MailService (SMTP)', () => {
         SMTP_HOST: 'smtp.example.com',
         SMTP_PORT: '587',
         SMTP_FAMILY: '4',
+        SMTP_VERIFY_ON_STARTUP: 'true',
         SMTP_SECURE: 'false',
         SMTP_USER: 'user@example.com',
         SMTP_PASS: 'app-password',
@@ -88,6 +89,7 @@ describe('MailService (SMTP)', () => {
         NODE_ENV: 'test',
         SMTP_HOST: 'smtp.example.com',
         SMTP_PORT: '587',
+        SMTP_VERIFY_ON_STARTUP: 'true',
         SMTP_SECURE: 'false',
         SMTP_USER: 'user@example.com',
         SMTP_PASS: 'app-password',
@@ -118,6 +120,7 @@ describe('MailService (SMTP)', () => {
         NODE_ENV: 'production',
         SMTP_HOST: 'smtp.example.com',
         SMTP_PORT: '587',
+        SMTP_VERIFY_ON_STARTUP: 'true',
         SMTP_SECURE: 'false',
         SMTP_USER: 'user@example.com',
         SMTP_PASS: 'app-password',
@@ -148,6 +151,7 @@ describe('MailService (SMTP)', () => {
         SMTP_FAIL_FAST: 'true',
         SMTP_HOST: 'smtp.example.com',
         SMTP_PORT: '587',
+        SMTP_VERIFY_ON_STARTUP: 'true',
         SMTP_SECURE: 'false',
         SMTP_USER: 'user@example.com',
         SMTP_PASS: 'app-password',
@@ -172,5 +176,30 @@ describe('MailService (SMTP)', () => {
     await expect(service.onModuleInit()).rejects.toThrow(
       'Mail service is required in production',
     );
+  });
+
+  it('skips SMTP verify at startup by default', async () => {
+    const verifyMock = jest.fn().mockResolvedValue(true);
+    const sendMailMock = jest.fn().mockResolvedValue({ messageId: 'smtp_2' });
+
+    createTransportMock.mockReturnValue({
+      verify: verifyMock,
+      sendMail: sendMailMock,
+    });
+
+    const service = new MailService(
+      createConfigService({
+        NODE_ENV: 'production',
+        SMTP_HOST: 'smtp.example.com',
+        SMTP_PORT: '587',
+        SMTP_SECURE: 'false',
+        SMTP_USER: 'user@example.com',
+        SMTP_PASS: 'app-password',
+        MAIL_FROM: 'no-reply@example.com',
+      }),
+    );
+
+    await service.onModuleInit();
+    expect(verifyMock).not.toHaveBeenCalled();
   });
 });
