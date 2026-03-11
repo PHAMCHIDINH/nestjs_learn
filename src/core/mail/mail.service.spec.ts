@@ -64,6 +64,10 @@ describe('MailService (SMTP)', () => {
         host: 'smtp.example.com',
         port: 587,
         family: 4,
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
+        dnsTimeout: 10000,
       }),
     );
     expect(verifyMock).toHaveBeenCalledTimes(1);

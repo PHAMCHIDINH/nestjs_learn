@@ -87,14 +87,15 @@ export class AuthService {
             });
 
         const otpCode = await this.createOtp(tx, email, OtpType.REGISTER);
-        await this.mailService.sendOtpEmail(email, otpCode, {
-          requestId,
-        });
 
         return { user, otpCode };
       },
       { timeout: 20_000 },
     );
+
+    await this.mailService.sendOtpEmail(email, otpCode, {
+      requestId,
+    });
 
     return {
       message: 'OTP sent successfully',
@@ -122,13 +123,14 @@ export class AuthService {
         }
 
         const otpCode = await this.createOtp(tx, email, OtpType.REGISTER);
-        await this.mailService.sendOtpEmail(email, otpCode, {
-          requestId,
-        });
         return otpCode;
       },
       { timeout: 20_000 },
     );
+
+    await this.mailService.sendOtpEmail(email, otpCode, {
+      requestId,
+    });
 
     return {
       message: 'OTP resent successfully',

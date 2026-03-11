@@ -5,21 +5,8 @@ import helmet from 'helmet';
 import { AUTH_COOKIE_NAME } from './common/constants/auth.constants';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { getConfiguredCorsOrigins, getCorsOriginOption } from './common/utils/cors';
 import { AppModule } from './app.module';
-
-function getCorsOrigin(): string[] | boolean {
-  const rawOrigins = process.env.CORS_ORIGIN ?? '';
-  const origins = rawOrigins
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter((origin) => origin.length > 0);
-
-  if (origins.length > 0) {
-    return origins;
-  }
-
-  return process.env.NODE_ENV === 'production' ? false : true;
-}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -37,11 +24,14 @@ async function bootstrap() {
     }),
   );
 
-  const corsOrigin = getCorsOrigin();
+  const configuredOrigins = getConfiguredCorsOrigins();
+  const corsOrigin = getCorsOriginOption();
   if (corsOrigin === false) {
     logger.warn(
       'CORS is disabled in production because CORS_ORIGIN is not configured.',
     );
+  } else if (configuredOrigins.length > 0) {
+    logger.log(`CORS allow-list: ${configuredOrigins.join(', ')}`);
   }
 
   app.enableCors({

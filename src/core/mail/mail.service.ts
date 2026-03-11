@@ -17,6 +17,10 @@ export class MailService implements OnModuleInit {
   private readonly smtpFamily: number | undefined;
   private readonly smtpSecure: boolean;
   private readonly smtpRequireTLS: boolean;
+  private readonly smtpConnectionTimeout: number;
+  private readonly smtpGreetingTimeout: number;
+  private readonly smtpSocketTimeout: number;
+  private readonly smtpDnsTimeout: number;
   private readonly smtpUser: string | null;
   private readonly smtpPass: string | null;
   private readonly fromAddress: string | null;
@@ -39,6 +43,22 @@ export class MailService implements OnModuleInit {
     );
     this.smtpRequireTLS = this.parseBoolean(
       this.configService.get<string>('SMTP_REQUIRE_TLS', 'false'),
+    );
+    this.smtpConnectionTimeout = this.parseNumber(
+      this.configService.get<string>('SMTP_CONNECTION_TIMEOUT', '10000'),
+      10000,
+    );
+    this.smtpGreetingTimeout = this.parseNumber(
+      this.configService.get<string>('SMTP_GREETING_TIMEOUT', '10000'),
+      10000,
+    );
+    this.smtpSocketTimeout = this.parseNumber(
+      this.configService.get<string>('SMTP_SOCKET_TIMEOUT', '15000'),
+      15000,
+    );
+    this.smtpDnsTimeout = this.parseNumber(
+      this.configService.get<string>('SMTP_DNS_TIMEOUT', '10000'),
+      10000,
     );
     this.smtpUser = this.configService.get<string>('SMTP_USER')?.trim() ?? null;
     this.smtpPass = this.configService.get<string>('SMTP_PASS')?.trim() ?? null;
@@ -187,6 +207,10 @@ export class MailService implements OnModuleInit {
       family: this.smtpFamily,
       secure: this.smtpSecure,
       requireTLS: this.smtpRequireTLS,
+      connectionTimeout: this.smtpConnectionTimeout,
+      greetingTimeout: this.smtpGreetingTimeout,
+      socketTimeout: this.smtpSocketTimeout,
+      dnsTimeout: this.smtpDnsTimeout,
       auth:
         this.smtpUser && this.smtpPass
           ? {
