@@ -141,7 +141,7 @@ export const validateEnvironment = (config: EnvironmentRecord) => {
     ...config,
     NODE_ENV: nodeEnv,
     PORT: parsePositiveInteger(config.PORT, 'PORT', 3000),
-    JWT_SECRET: jwtSecret,
+    ['JWT_SECRET']: jwtSecret,
     JWT_EXPIRES_IN: parseDuration(
       config.JWT_EXPIRES_IN,
       'JWT_EXPIRES_IN',

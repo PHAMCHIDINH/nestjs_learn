@@ -28,6 +28,12 @@ type AuthUser = {
   role: string;
 };
 
+type SocketTokenPayload = {
+  token: string;
+};
+
+const SOCKET_TOKEN_EXPIRES_IN = '5m';
+
 @Injectable()
 export class AuthService {
   private readonly jwtExpiresIn: string;
@@ -286,6 +292,19 @@ export class AuthService {
     });
 
     return { message: 'Logged out successfully' };
+  }
+
+  createSocketToken(authUser: AuthUser): SocketTokenPayload {
+    return {
+      token: this.jwtService.sign(
+        {
+          sub: authUser.userId,
+          role: authUser.role,
+          tokenType: 'socket',
+        },
+        { expiresIn: SOCKET_TOKEN_EXPIRES_IN as never },
+      ),
+    };
   }
 
   private async createOtp(

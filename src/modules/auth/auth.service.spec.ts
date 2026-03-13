@@ -329,4 +329,32 @@ describe('AuthService', () => {
     expect(result.debugOtp).toMatch(/^\d{6}$/);
     expect(mailServiceMock.sendOtpEmail).not.toHaveBeenCalled();
   });
+
+  it('creates a short-lived socket token for realtime chat', () => {
+    const prismaMock = createPrismaMock({ users: [], otps: [] });
+    const mailServiceMock = createMailServiceMock(false);
+    const configServiceMock = createConfigServiceMock();
+    const signMock = jest.fn().mockReturnValue('socket-token');
+    const authService = new AuthService(
+      prismaMock as never,
+      { sign: signMock } as never,
+      mailServiceMock as never,
+      configServiceMock as never,
+    );
+
+    const result = authService.createSocketToken({
+      userId: 'user-socket',
+      role: 'USER',
+    });
+
+    expect(result).toEqual({ token: 'socket-token' });
+    expect(signMock).toHaveBeenCalledWith(
+      {
+        sub: 'user-socket',
+        role: 'USER',
+        tokenType: 'socket',
+      },
+      { expiresIn: '5m' },
+    );
+  });
 });

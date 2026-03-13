@@ -98,4 +98,16 @@ export class AuthController {
   ) {
     return this.authService.logout(authUser, response);
   }
+
+  @Post('socket-token')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('bearer')
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid access token' })
+  @ApiOperation({
+    summary: 'Issue a short-lived websocket token for realtime chat',
+  })
+  socketToken(@CurrentUser() authUser: AuthUser) {
+    return this.authService.createSocketToken(authUser);
+  }
 }

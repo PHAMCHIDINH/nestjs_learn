@@ -17,14 +17,13 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { AUTH_COOKIE_NAME } from '../../common/constants/auth.constants';
-import { extractCookieValue } from '../../common/utils/cookies';
 import { SendMessageDto } from './dto/send-message.dto';
 import { AuthUser, ConversationsService } from './conversations.service';
 
 type JwtPayload = {
   sub: string;
   role: string;
+  tokenType?: string;
 };
 
 type ChatSendPayload = {
@@ -45,11 +44,6 @@ type ChatErrorPayload = {
 type SocketWithAuth = Socket & {
   data: {
     authUser?: AuthUser;
-  };
-  handshake: Socket['handshake'] & {
-    headers?: {
-      cookie?: string;
-    };
   };
 };
 
@@ -171,24 +165,18 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
   }
 
   private extractAuthUser(socket: Socket): AuthUser {
-    const typedSocket = socket as SocketWithAuth;
-    const cookieToken = extractCookieValue(
-      typedSocket.handshake.headers?.cookie,
-      AUTH_COOKIE_NAME,
-    );
     const token =
-      cookieToken ??
-      (typeof socket.handshake.auth?.token === 'string'
+      typeof socket.handshake.auth?.token === 'string'
         ? socket.handshake.auth.token
-        : undefined);
+        : undefined;
 
     if (typeof token !== 'string' || !token.trim()) {
-      throw new UnauthorizedException('Missing access token');
+      throw new UnauthorizedException('Missing socket token');
     }
 
     try {
       const payload = this.jwtService.verify<JwtPayload>(token);
-      if (!payload.sub) {
+      if (!payload.sub || payload.tokenType !== 'socket') {
         throw new UnauthorizedException('Invalid token payload');
       }
       return { userId: payload.sub };

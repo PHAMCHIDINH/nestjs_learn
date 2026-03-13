@@ -91,13 +91,28 @@ describe('ChatGateway', () => {
   it('joins user room when token is valid', () => {
     const socket = createSocket('valid-token');
     const next = jest.fn();
-    verifyMock.mockReturnValueOnce({ sub: 'user-1', role: 'USER' });
+    verifyMock.mockReturnValueOnce({
+      sub: 'user-1',
+      role: 'USER',
+      tokenType: 'socket',
+    });
 
     middleware?.(socket, next);
     gateway.handleConnection(socket as never);
 
     expect(next).toHaveBeenCalledWith();
     expect(socket.join).toHaveBeenCalledWith('user:user-1');
+  });
+
+  it('rejects socket auth when token is not a socket token', () => {
+    const socket = createSocket('valid-access-token');
+    const next = jest.fn();
+    verifyMock.mockReturnValueOnce({ sub: 'user-1', role: 'USER' });
+
+    middleware?.(socket, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toBeInstanceOf(Error);
   });
 
   it('sends text message via websocket and emits chat:message to participants', async () => {
