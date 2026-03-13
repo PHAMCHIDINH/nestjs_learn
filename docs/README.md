@@ -6,10 +6,12 @@ This folder contains technical documentation for `backend-repo`.
 
 - `BACKEND_TECH_STACK.md`: backend stack, architecture decisions, and key dependencies.
 - `ARCHITECTURE.md`: backend module layout and structural principles.
+- `AI_MODERATION.md`: luong AI moderation bat dong bo cho listing, env OpenRouter, audit/job queue, va admin rerun.
 - `SERVERCN_BACKEND_IMPLEMENTATION_PLAN.md`: phased implementation plan based on the ServerCN research.
 
 ## Recommended Read Order
 
 1. `BACKEND_TECH_STACK.md`
 2. `ARCHITECTURE.md`
-3. `SERVERCN_BACKEND_IMPLEMENTATION_PLAN.md`
+3. `AI_MODERATION.md`
+4. `SERVERCN_BACKEND_IMPLEMENTATION_PLAN.md`

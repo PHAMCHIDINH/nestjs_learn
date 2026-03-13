@@ -32,6 +32,7 @@ Backend technical documentation is available in the `docs/` folder:
 - `docs/README.md`
 - `docs/BACKEND_TECH_STACK.md`
 - `docs/ARCHITECTURE.md`
+- `docs/AI_MODERATION.md`
 - `docs/SERVERCN_BACKEND_IMPLEMENTATION_PLAN.md`
 
 ## Project setup
@@ -61,10 +62,17 @@ $ docker compose up -d --build
 ```
 
 Services:
+
 - Backend: `http://localhost:3000`
 - PostgreSQL: `localhost:5432`
 
-The backend container syncs the Prisma schema automatically before starting.
+The backend container runs `prisma migrate deploy` automatically before starting, so committed migrations are applied on each container start. This keeps database tables in sync with the migration history when you run `docker compose up -d --build`.
+
+If you also need demo data, run seed manually after the stack is up:
+
+```bash
+$ docker compose exec backend npm run db:seed
+```
 
 ## Email Configuration for OTP
 
@@ -94,6 +102,7 @@ SMTP_VERIFY_ON_STARTUP=false
 ```
 
 Notes:
+
 - `OTP_DELIVERY_MODE=manual` tam thoi bo qua email va tra `debugOtp` cho client o moi moi truong. Chi dung cho demo/test vi OTP se lo ra phia frontend.
 - `MAIL_PROVIDER=auto` prefers Resend when `RESEND_API_KEY` is present, otherwise it falls back to SMTP when `SMTP_HOST` is configured.
 - On Railway, prefer Resend because it uses HTTPS and avoids SMTP connectivity limits that commonly cause OTP requests to hang before returning `503`.
@@ -113,6 +122,42 @@ CLOUDINARY_API_KEY=your-api-key
 CLOUDINARY_API_SECRET=your-api-secret
 CLOUDINARY_FOLDER=cho-sinh-vien/listings
 ```
+
+## AI Moderation
+
+Listing moderation v1 uses LangChain + OpenRouter through the OpenAI-compatible API.
+
+Behavior:
+
+- `AI_MODERATION_ENABLED=false`: listing flow stays unchanged.
+- `AI_MODERATION_ENABLED=true`: backend enqueues moderation after create and after content edits.
+- Moderation runs in the background via PostgreSQL-backed jobs.
+- Only low-risk listings are auto-approved.
+- Suspicious listings stay `PENDING` for admin review.
+- Provider errors, parse errors, or timeouts do not fail the listing request; the listing stays `PENDING` and an audit row is written.
+
+Required env when enabled:
+
+```bash
+AI_MODERATION_ENABLED=true
+OPENROUTER_API_KEY=your-openrouter-key
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+AI_MODERATION_MODEL=openrouter/free
+AI_MODERATION_TIMEOUT_MS=30000
+AI_AUTO_APPROVE_CONFIDENCE_MIN=0.85
+AI_MODERATION_PROVIDER_REQUIRE_PARAMETERS=true
+AI_MODERATION_PROVIDER_SORT=latency
+AI_MODERATION_PREFERRED_MAX_LATENCY_MS=20000
+AI_MODERATION_ENABLE_RESPONSE_HEALING=true
+OPENROUTER_HTTP_REFERER=https://your-admin-host.example
+OPENROUTER_APP_TITLE=Cho Sinh Vien Backend
+```
+
+Related docs:
+
+- `docs/AI_MODERATION.md`
+
+Admin rerun endpoint is asynchronous now: it enqueues a moderation job and returns `jobStatus` instead of waiting for the model result.
 
 Quick API test:
 
@@ -137,6 +182,10 @@ $ curl -X POST http://localhost:3000/auth/verify-otp \
 
 # list listings
 $ curl "http://localhost:3000/listings?page=1&limit=20"
+
+# rerun AI moderation for a listing as admin
+$ curl -X POST http://localhost:3000/admin/listings/<listing-id>/moderation/rerun \
+  -H "Authorization: Bearer <admin-jwt>"
 ```
 
 ## Security / CORS

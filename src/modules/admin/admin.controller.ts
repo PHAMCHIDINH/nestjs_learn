@@ -32,6 +32,12 @@ export class AdminController {
     return this.adminService.rejectListing(id);
   }
 
+  @Post('listings/:id/moderation/rerun')
+  @ApiOperation({ summary: 'Rerun AI moderation for a listing' })
+  rerunModeration(@Param('id') id: string) {
+    return this.adminService.rerunModeration(id);
+  }
+
   @Get('reports')
   @ApiOperation({ summary: 'Get reports' })
   reports(@Query() query: ListingQueryDto) {

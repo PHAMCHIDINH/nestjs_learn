@@ -3,18 +3,20 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ApprovalStatus, NotificationType, ReportStatus } from '@prisma/client';
+import { ApprovalStatus, ReportStatus } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
+import { ListingModerationJobService } from '../ai/listing-moderation-job.service';
+import { ListingModerationWorkflowService } from '../ai/listing-moderation-workflow.service';
 import { ListingQueryDto } from '../listings/dto/listing-query.dto';
 import { mapListingToFrontend } from '../listings/listing.mapper';
-import { NotificationsService } from '../notifications/notifications.service';
 import { mapUserToFrontend } from '../users/user.mapper';
 
 @Injectable()
 export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly notificationsService: NotificationsService,
+    private readonly listingModerationJobService: ListingModerationJobService,
+    private readonly listingModerationWorkflowService: ListingModerationWorkflowService,
   ) {}
 
   async pendingListings(query: ListingQueryDto) {
@@ -29,6 +31,11 @@ export class AdminService {
           category: true,
           images: { orderBy: { order: 'asc' } },
           favorites: true,
+          moderationRuns: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+          moderationJob: true,
         },
         orderBy: { createdAt: 'desc' },
         skip: (query.page - 1) * query.limit,
@@ -48,51 +55,36 @@ export class AdminService {
   }
 
   async approveListing(id: string) {
-    const listing = await this.prisma.listing.findUnique({ where: { id } });
-    if (!listing) {
-      throw new NotFoundException('Listing not found');
-    }
-
-    await this.prisma.listing.update({
-      where: { id },
-      data: { approvalStatus: ApprovalStatus.APPROVED },
-    });
-
-    await this.notificationsService.create(
-      listing.sellerId,
-      NotificationType.LISTING_APPROVED,
-      'Listing approved',
-      `Your listing "${listing.title}" has been approved.`,
-      {
-        listingId: listing.id,
-      },
-    );
+    await this.listingModerationWorkflowService.approveListing(id);
 
     return { message: 'Listing approved' };
   }
 
   async rejectListing(id: string) {
+    await this.listingModerationWorkflowService.rejectListing(id);
+
+    return { message: 'Listing rejected' };
+  }
+
+  async rerunModeration(id: string) {
+    if (!this.listingModerationJobService.isEnabled()) {
+      throw new BadRequestException('AI moderation is disabled');
+    }
+
     const listing = await this.prisma.listing.findUnique({ where: { id } });
     if (!listing) {
       throw new NotFoundException('Listing not found');
     }
 
-    await this.prisma.listing.update({
-      where: { id },
-      data: { approvalStatus: ApprovalStatus.REJECTED },
+    const jobStatus = await this.listingModerationJobService.enqueue(id, {
+      preserveRunning: true,
     });
 
-    await this.notificationsService.create(
-      listing.sellerId,
-      NotificationType.LISTING_REJECTED,
-      'Listing rejected',
-      `Your listing "${listing.title}" has been rejected.`,
-      {
-        listingId: listing.id,
-      },
-    );
-
-    return { message: 'Listing rejected' };
+    return {
+      message: 'Listing moderation rerun queued',
+      listingId: id,
+      jobStatus,
+    };
   }
 
   async reports(query: ListingQueryDto) {

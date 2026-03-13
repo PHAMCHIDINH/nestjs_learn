@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import {
   ApprovalStatus,
+  Category,
   Condition,
   Department,
   ListingStatus,
@@ -14,6 +15,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { CloudinaryService } from '../../core/media/cloudinary.service';
+import { ListingModerationJobService } from '../ai/listing-moderation-job.service';
 import {
   CreateListingDto,
   ListingImageInputDto,
@@ -37,6 +39,7 @@ export class ListingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cloudinaryService: CloudinaryService,
+    private readonly listingModerationJobService: ListingModerationJobService,
   ) {}
 
   async create(payload: CreateListingDto, authUser: AuthUser) {
@@ -79,7 +82,11 @@ export class ListingsService {
       include: this.listingInclude,
     });
 
-    return mapListingToFrontend(listing, authUser.userId);
+    const finalListing = this.listingModerationJobService.isEnabled()
+      ? await this.enqueueModerationAndReload(listing.id)
+      : listing;
+
+    return mapListingToFrontend(finalListing, authUser.userId);
   }
 
   async findAll(query: ListingQueryDto, authUser?: AuthUser) {
@@ -181,6 +188,7 @@ export class ListingsService {
       where: { id },
       include: {
         images: true,
+        category: true,
       },
     });
 
@@ -217,6 +225,11 @@ export class ListingsService {
           }
         : undefined,
     };
+    const shouldRemoderate = this.shouldRemoderate(existing, payload, category);
+
+    if (shouldRemoderate) {
+      data.approvalStatus = ApprovalStatus.PENDING;
+    }
 
     if (payload.title?.trim()) {
       data.slug = await this.generateSlug(payload.title, existing.id);
@@ -284,7 +297,12 @@ export class ListingsService {
       );
     }
 
-    return mapListingToFrontend(listing, authUser.userId);
+    const finalListing =
+      shouldRemoderate && this.listingModerationJobService.isEnabled()
+        ? await this.enqueueModerationAndReload(listing.id)
+        : listing;
+
+    return mapListingToFrontend(finalListing, authUser.userId);
   }
 
   async updateStatus(id: string, status: string, authUser: AuthUser) {
@@ -379,7 +397,68 @@ export class ListingsService {
         orderBy: { order: 'asc' as const },
       },
       favorites: true,
+      moderationRuns: {
+        orderBy: { createdAt: 'desc' as const },
+        take: 1,
+      },
+      moderationJob: true,
     };
+  }
+
+  private async enqueueModerationAndReload(listingId: string) {
+    await this.listingModerationJobService.enqueue(listingId);
+
+    return this.prisma.listing.findUniqueOrThrow({
+      where: { id: listingId },
+      include: this.listingInclude,
+    });
+  }
+
+  private shouldRemoderate(
+    existing: {
+      title: string;
+      description: string;
+      categoryId: string;
+      department: Department | null;
+    },
+    payload: UpdateListingDto,
+    nextCategory: Category | null,
+  ) {
+    if (!this.listingModerationJobService.isEnabled()) {
+      return false;
+    }
+
+    if (
+      payload.title !== undefined &&
+      payload.title.trim() !== existing.title
+    ) {
+      return true;
+    }
+
+    if (
+      payload.description !== undefined &&
+      payload.description.trim() !== existing.description
+    ) {
+      return true;
+    }
+
+    if (payload.category?.trim() && nextCategory?.id !== existing.categoryId) {
+      return true;
+    }
+
+    if (payload.department !== undefined) {
+      if (!payload.department.trim()) {
+        return false;
+      }
+      const nextDepartment = payload.department.trim()
+        ? this.parseDepartment(payload.department)
+        : null;
+      if ((existing.department ?? null) !== nextDepartment) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   private async buildListWhere(

@@ -69,6 +69,17 @@ type ListingWithRelations = Listing & {
   category: Category;
   images?: ListingImage[];
   favorites?: Favorite[];
+  moderationRuns?: Array<{
+    riskLevel: string;
+    confidence: number | null;
+    recommendedAction: string | null;
+    summary: string | null;
+    violationsJson: unknown;
+    createdAt: Date;
+  }>;
+  moderationJob?: {
+    status: string;
+  } | null;
 };
 
 export const mapListingToFrontend = (
@@ -77,6 +88,9 @@ export const mapListingToFrontend = (
 ) => {
   const images = (listing.images ?? []).sort((a, b) => a.order - b.order);
   const favorites = listing.favorites ?? [];
+  const latestModeration = [...(listing.moderationRuns ?? [])].sort(
+    (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
+  )[0];
 
   return {
     id: listing.id,
@@ -98,5 +112,23 @@ export const mapListingToFrontend = (
     isSaved: currentUserId
       ? favorites.some((favorite) => favorite.userId === currentUserId)
       : false,
+    latestModeration: latestModeration
+      ? {
+          riskLevel: latestModeration.riskLevel.toLowerCase(),
+          confidence: latestModeration.confidence,
+          recommendedAction:
+            latestModeration.recommendedAction?.toLowerCase() ?? null,
+          summary: latestModeration.summary ?? null,
+          violations: Array.isArray(latestModeration.violationsJson)
+            ? latestModeration.violationsJson.filter(
+                (value): value is string => typeof value === 'string',
+              )
+            : [],
+          createdAt: latestModeration.createdAt,
+        }
+      : undefined,
+    moderationJobStatus: listing.moderationJob?.status
+      ? listing.moderationJob.status.toLowerCase()
+      : undefined,
   };
 };
