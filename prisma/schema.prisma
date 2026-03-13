@@ -56,6 +56,13 @@ enum ReportStatus {
   RESOLVED
 }
 
+enum NotificationType {
+  NEW_MESSAGE
+  LISTING_APPROVED
+  LISTING_REJECTED
+  NEW_REVIEW
+}
+
 model User {
   id           String      @id @default(cuid())
   email        String      @unique
@@ -85,6 +92,7 @@ model User {
   reviewsGiven             Review[]                  @relation("ReviewerReviews")
   blocksInitiated          UserBlock[]              @relation("Blocker")
   blocksReceived           UserBlock[]              @relation("Blocked")
+  notifications            Notification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -281,4 +289,21 @@ model Review {
   @@unique([listingId, reviewerId])
   @@index([sellerId])
   @@map("reviews")
+}
+
+model Notification {
+  id       String           @id @default(cuid())
+  userId   String
+  type     NotificationType
+  title    String
+  body     String
+  isRead   Boolean          @default(false)
+  metadata Json?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead, createdAt(sort: Desc)])
+  @@map("notifications")
 }

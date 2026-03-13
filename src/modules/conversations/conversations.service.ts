@@ -4,9 +4,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { MessageType, Prisma } from '@prisma/client';
+import { MessageType, NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { mapListingToFrontend } from '../listings/listing.mapper';
+import { NotificationsService } from '../notifications/notifications.service';
 import { mapUserToFrontend } from '../users/user.mapper';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { ConversationMessagesQueryDto } from './dto/conversation-messages-query.dto';
@@ -54,7 +55,10 @@ type ConversationWithRelations = Prisma.ConversationGetPayload<{
 
 @Injectable()
 export class ConversationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   async findMine(authUser: AuthUser) {
     const conversations = await this.prisma.conversation.findMany({
@@ -274,6 +278,30 @@ export class ConversationsService {
         data: { lastMessageAt: new Date() },
       }),
     ]);
+
+    if (recipientIds.length > 0) {
+      const previewText =
+        content ||
+        (type === MessageType.IMAGE
+          ? 'Ban vua nhan mot hinh anh moi'
+          : 'Ban vua nhan mot tin nhan moi');
+
+      await Promise.all(
+        recipientIds.map((recipientId) =>
+          this.notificationsService.create(
+            recipientId,
+            NotificationType.NEW_MESSAGE,
+            'Tin nhan moi',
+            previewText,
+            {
+              conversationId: id,
+              messageId: message.id,
+              senderId: authUser.userId,
+            },
+          ),
+        ),
+      );
+    }
 
     const me = conversation.participants.find(
       (participant) => participant.userId === authUser.userId,

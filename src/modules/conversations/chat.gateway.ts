@@ -17,14 +17,9 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { extractSocketAuthUser } from '../../common/utils/socket-auth';
 import { SendMessageDto } from './dto/send-message.dto';
 import { AuthUser, ConversationsService } from './conversations.service';
-
-type JwtPayload = {
-  sub: string;
-  role: string;
-  tokenType?: string;
-};
 
 type ChatSendPayload = {
   conversationId?: string;
@@ -165,24 +160,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
   }
 
   private extractAuthUser(socket: Socket): AuthUser {
-    const token =
-      typeof socket.handshake.auth?.token === 'string'
-        ? socket.handshake.auth.token
-        : undefined;
-
-    if (typeof token !== 'string' || !token.trim()) {
-      throw new UnauthorizedException('Missing socket token');
-    }
-
-    try {
-      const payload = this.jwtService.verify<JwtPayload>(token);
-      if (!payload.sub || payload.tokenType !== 'socket') {
-        throw new UnauthorizedException('Invalid token payload');
-      }
-      return { userId: payload.sub };
-    } catch {
-      throw new UnauthorizedException('Invalid or expired token');
-    }
+    return extractSocketAuthUser(socket, this.jwtService);
   }
 
   private userRoom(userId: string) {

@@ -3,15 +3,19 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ApprovalStatus, ReportStatus } from '@prisma/client';
+import { ApprovalStatus, NotificationType, ReportStatus } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { ListingQueryDto } from '../listings/dto/listing-query.dto';
 import { mapListingToFrontend } from '../listings/listing.mapper';
+import { NotificationsService } from '../notifications/notifications.service';
 import { mapUserToFrontend } from '../users/user.mapper';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   async pendingListings(query: ListingQueryDto) {
     const [total, listings] = await this.prisma.$transaction([
@@ -54,6 +58,16 @@ export class AdminService {
       data: { approvalStatus: ApprovalStatus.APPROVED },
     });
 
+    await this.notificationsService.create(
+      listing.sellerId,
+      NotificationType.LISTING_APPROVED,
+      'Listing approved',
+      `Your listing "${listing.title}" has been approved.`,
+      {
+        listingId: listing.id,
+      },
+    );
+
     return { message: 'Listing approved' };
   }
 
@@ -67,6 +81,16 @@ export class AdminService {
       where: { id },
       data: { approvalStatus: ApprovalStatus.REJECTED },
     });
+
+    await this.notificationsService.create(
+      listing.sellerId,
+      NotificationType.LISTING_REJECTED,
+      'Listing rejected',
+      `Your listing "${listing.title}" has been rejected.`,
+      {
+        listingId: listing.id,
+      },
+    );
 
     return { message: 'Listing rejected' };
   }
