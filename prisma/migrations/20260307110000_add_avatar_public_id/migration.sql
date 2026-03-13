@@ -1,2 +1,2 @@
 -- AlterTable
-ALTER TABLE "users" ADD COLUMN "avatarPublicId" TEXT;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatarPublicId" TEXT;

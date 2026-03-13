@@ -15,11 +15,11 @@ async function main() {
   const passwordHash = await bcrypt.hash('password123', 10);
 
   const categories = [
-    { slug: 'textbook', name: 'Giao trinh', icon: 'book' },
-    { slug: 'electronics', name: 'Dien tu', icon: 'laptop' },
-    { slug: 'dorm', name: 'Do phong tro', icon: 'home' },
-    { slug: 'study', name: 'Dung cu hoc tap', icon: 'pen' },
-    { slug: 'other', name: 'Khac', icon: 'box' },
+    { slug: 'textbook', name: 'Giáo trình', icon: 'book' },
+    { slug: 'electronics', name: 'Điện tử', icon: 'laptop' },
+    { slug: 'dorm', name: 'Đồ phòng trọ', icon: 'home' },
+    { slug: 'study', name: 'Dụng cụ học tập', icon: 'pen' },
+    { slug: 'other', name: 'Khác', icon: 'box' },
   ];
 
   for (const category of categories) {

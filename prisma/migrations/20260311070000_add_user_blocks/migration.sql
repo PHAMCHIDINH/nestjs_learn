@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE "user_blocks" (
+CREATE TABLE IF NOT EXISTS "user_blocks" (
     "id" TEXT NOT NULL,
     "blockerId" TEXT NOT NULL,
     "blockedId" TEXT NOT NULL,
@@ -9,13 +9,23 @@ CREATE TABLE "user_blocks" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "user_blocks_blockerId_blockedId_key" ON "user_blocks"("blockerId", "blockedId");
+CREATE UNIQUE INDEX IF NOT EXISTS "user_blocks_blockerId_blockedId_key" ON "user_blocks"("blockerId", "blockedId");
 
 -- CreateIndex
-CREATE INDEX "user_blocks_blockedId_idx" ON "user_blocks"("blockedId");
+CREATE INDEX IF NOT EXISTS "user_blocks_blockedId_idx" ON "user_blocks"("blockedId");
 
 -- AddForeignKey
-ALTER TABLE "user_blocks" ADD CONSTRAINT "user_blocks_blockerId_fkey" FOREIGN KEY ("blockerId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "user_blocks" ADD CONSTRAINT "user_blocks_blockedId_fkey" FOREIGN KEY ("blockedId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'user_blocks_blockerId_fkey') THEN
+    ALTER TABLE "user_blocks"
+      ADD CONSTRAINT "user_blocks_blockerId_fkey"
+      FOREIGN KEY ("blockerId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'user_blocks_blockedId_fkey') THEN
+    ALTER TABLE "user_blocks"
+      ADD CONSTRAINT "user_blocks_blockedId_fkey"
+      FOREIGN KEY ("blockedId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END
+$$;

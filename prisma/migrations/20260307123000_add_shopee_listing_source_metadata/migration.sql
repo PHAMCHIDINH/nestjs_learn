@@ -1,0 +1,3 @@
+-- This migration directory existed without a SQL file, which makes
+-- `prisma migrate deploy` fail with P3015. Keep it as an explicit no-op
+-- until the corresponding schema change is restored or removed.
