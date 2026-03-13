@@ -1,7 +1,4 @@
-import {
-  BadRequestException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ChatGateway } from './chat.gateway';
 import type { AuthUser } from './conversations.service';
 
@@ -38,7 +35,9 @@ describe('ChatGateway', () => {
   const roomEmitMock = jest.fn();
 
   let gateway: ChatGateway;
-  let middleware: ((socket: unknown, next: (error?: Error) => void) => void) | null;
+  let middleware:
+    | ((socket: unknown, next: (error?: Error) => void) => void)
+    | null;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -51,7 +50,10 @@ describe('ChatGateway', () => {
       sendMessageRealtime: sendMessageRealtimeMock,
     };
 
-    gateway = new ChatGateway(jwtService as never, conversationsService as never);
+    gateway = new ChatGateway(
+      jwtService as never,
+      conversationsService as never,
+    );
 
     const server = {
       use: (fn: (socket: unknown, next: (error?: Error) => void) => void) => {

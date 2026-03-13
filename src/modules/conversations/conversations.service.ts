@@ -68,17 +68,18 @@ export class ConversationsService {
       include: this.conversationInclude,
       orderBy: [{ lastMessageAt: 'desc' }, { createdAt: 'desc' }],
     });
+    const unreadCounts = await this.loadUnreadCounts(
+      conversations,
+      authUser.userId,
+    );
 
-    const items: Array<ReturnType<ConversationsService['mapConversation']>> =
-      [];
-    for (const conversation of conversations) {
-      const unreadCount = await this.countUnread(conversation, authUser.userId);
-      items.push(
-        this.mapConversation(conversation, authUser.userId, unreadCount),
-      );
-    }
-
-    return items;
+    return conversations.map((conversation) =>
+      this.mapConversation(
+        conversation,
+        authUser.userId,
+        unreadCounts.get(conversation.id) ?? 0,
+      ),
+    );
   }
 
   async create(authUser: AuthUser, payload: CreateConversationDto) {
@@ -129,8 +130,15 @@ export class ConversationsService {
     });
 
     if (existing) {
-      const unreadCount = await this.countUnread(existing, authUser.userId);
-      return this.mapConversation(existing, authUser.userId, unreadCount);
+      const unreadCounts = await this.loadUnreadCounts(
+        [existing],
+        authUser.userId,
+      );
+      return this.mapConversation(
+        existing,
+        authUser.userId,
+        unreadCounts.get(existing.id) ?? 0,
+      );
     }
 
     const conversation = await this.prisma.conversation.create({
@@ -360,25 +368,43 @@ export class ConversationsService {
     return conversation;
   }
 
-  private async countUnread(
-    conversation: ConversationWithRelations,
+  private async loadUnreadCounts(
+    conversations: ConversationWithRelations[],
     userId: string,
   ) {
-    const me = conversation.participants.find(
-      (participant) => participant.userId === userId,
-    );
+    if (conversations.length === 0) {
+      return new Map<string, number>();
+    }
 
-    return this.prisma.message.count({
+    const unreadFilters = conversations.map((conversation) => {
+      const me = conversation.participants.find(
+        (participant) => participant.userId === userId,
+      );
+
+      return me?.lastReadAt
+        ? {
+            conversationId: conversation.id,
+            createdAt: { gt: me.lastReadAt },
+          }
+        : {
+            conversationId: conversation.id,
+          };
+    });
+
+    const unreadCounts = await this.prisma.message.groupBy({
+      by: ['conversationId'],
       where: {
-        conversationId: conversation.id,
         senderId: { not: userId },
-        ...(me?.lastReadAt
-          ? {
-              createdAt: { gt: me.lastReadAt },
-            }
-          : {}),
+        OR: unreadFilters,
+      },
+      _count: {
+        _all: true,
       },
     });
+
+    return new Map(
+      unreadCounts.map((item) => [item.conversationId, item._count._all]),
+    );
   }
 
   private mapConversation(

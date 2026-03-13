@@ -1,7 +1,4 @@
-import {
-  INestApplication,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { INestApplication, ServiceUnavailableException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
@@ -136,13 +133,15 @@ const prismaMock = {
 };
 
 const cloudinaryMock = {
-  uploadImage: jest.fn().mockImplementation(async (_buffer, folder?: string) => {
-    const uploadFolder = folder || 'cho-sinh-vien/listings';
-    return {
-      url: `https://res.cloudinary.com/demo/image/upload/${uploadFolder}/sample.jpg`,
-      publicId: `${uploadFolder}/sample`,
-    };
-  }),
+  uploadImage: jest
+    .fn()
+    .mockImplementation(async (_buffer, folder?: string) => {
+      const uploadFolder = folder || 'cho-sinh-vien/listings';
+      return {
+        url: `https://res.cloudinary.com/demo/image/upload/${uploadFolder}/sample.jpg`,
+        publicId: `${uploadFolder}/sample`,
+      };
+    }),
   destroyImage: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -310,7 +309,10 @@ describe('App e2e', () => {
         department: 'cntt',
       };
 
-      await request(app.getHttpServer()).post('/users').send(payload).expect(401);
+      await request(app.getHttpServer())
+        .post('/users')
+        .send(payload)
+        .expect(401);
 
       await request(app.getHttpServer())
         .post('/users')

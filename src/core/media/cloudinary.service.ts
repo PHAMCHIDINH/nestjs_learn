@@ -26,7 +26,8 @@ export class CloudinaryService {
     const result = await new Promise<UploadResult>((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         {
-          folder: folder || process.env.CLOUDINARY_FOLDER || 'cho-sinh-vien/listings',
+          folder:
+            folder || process.env.CLOUDINARY_FOLDER || 'cho-sinh-vien/listings',
           resource_type: 'image',
         },
         (error, uploadResult) => {

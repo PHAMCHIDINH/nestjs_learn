@@ -84,13 +84,13 @@ export class MailService implements OnModuleInit {
         'RESEND_API_BASE_URL',
         'https://api.resend.com',
       ) ?? 'https://api.resend.com';
-    this.fromAddress = this.configService.get<string>('MAIL_FROM')?.trim() ?? null;
+    this.fromAddress =
+      this.configService.get<string>('MAIL_FROM')?.trim() ?? null;
     this.isProduction =
       this.configService.get<string>(
         'NODE_ENV',
         process.env.NODE_ENV ?? 'development',
-      ) ===
-      'production';
+      ) === 'production';
     this.smtpFailFast = this.parseBoolean(
       this.configService.get<string>('SMTP_FAIL_FAST', 'false'),
     );
@@ -225,7 +225,10 @@ export class MailService implements OnModuleInit {
       return false;
     }
 
-    if ((this.smtpUser && !this.smtpPass) || (!this.smtpUser && this.smtpPass)) {
+    if (
+      (this.smtpUser && !this.smtpPass) ||
+      (!this.smtpUser && this.smtpPass)
+    ) {
       return false;
     }
 
@@ -255,7 +258,10 @@ export class MailService implements OnModuleInit {
       if (!this.smtpHost) {
         missing.push('SMTP_HOST');
       }
-      if ((this.smtpUser && !this.smtpPass) || (!this.smtpUser && this.smtpPass)) {
+      if (
+        (this.smtpUser && !this.smtpPass) ||
+        (!this.smtpUser && this.smtpPass)
+      ) {
         if (!this.smtpUser) {
           missing.push('SMTP_USER');
         }

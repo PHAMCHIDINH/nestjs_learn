@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AUTH_COOKIE_NAME } from '../constants/auth.constants';
+import { extractCookieValue } from '../utils/cookies';
 
 type JwtPayload = {
   sub: string;
@@ -53,20 +54,6 @@ export class AuthGuard implements CanActivate {
       return authHeader.slice(7);
     }
 
-    const cookieHeader = request.headers.cookie;
-    if (!cookieHeader) {
-      return null;
-    }
-
-    const cookies = cookieHeader.split(';').map((part) => part.trim());
-    const tokenCookie = cookies.find((part) =>
-      part.startsWith(`${AUTH_COOKIE_NAME}=`),
-    );
-
-    if (!tokenCookie) {
-      return null;
-    }
-
-    return decodeURIComponent(tokenCookie.split('=').slice(1).join('='));
+    return extractCookieValue(request.headers.cookie, AUTH_COOKIE_NAME);
   }
 }

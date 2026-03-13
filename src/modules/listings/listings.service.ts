@@ -179,6 +179,9 @@ export class ListingsService {
   async update(id: string, payload: UpdateListingDto, authUser: AuthUser) {
     const existing = await this.prisma.listing.findUnique({
       where: { id },
+      include: {
+        images: true,
+      },
     });
 
     if (!existing) {
@@ -223,6 +226,21 @@ export class ListingsService {
       payload.images !== undefined
         ? this.normalizeImageInputs(payload.images)
         : undefined;
+    const removedImagePublicIds =
+      normalizedImages !== undefined
+        ? existing.images
+            .filter(
+              (image) =>
+                image.publicId &&
+                !normalizedImages.some(
+                  (nextImage) =>
+                    nextImage.publicId === image.publicId ||
+                    nextImage.url === image.url,
+                ),
+            )
+            .map((image) => image.publicId)
+            .filter((publicId): publicId is string => Boolean(publicId))
+        : [];
 
     const listing =
       normalizedImages !== undefined
@@ -257,6 +275,14 @@ export class ListingsService {
             data,
             include: this.listingInclude,
           });
+
+    if (removedImagePublicIds.length > 0) {
+      await Promise.all(
+        removedImagePublicIds.map((publicId) =>
+          this.cloudinaryService.destroyImage(publicId),
+        ),
+      );
+    }
 
     return mapListingToFrontend(listing, authUser.userId);
   }

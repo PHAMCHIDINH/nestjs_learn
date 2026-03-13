@@ -192,7 +192,9 @@ describe('MailService', () => {
   });
 
   it('does not crash startup in production when SMTP verify fails by default', async () => {
-    const verifyMock = jest.fn().mockRejectedValue(new Error('connect timeout'));
+    const verifyMock = jest
+      .fn()
+      .mockRejectedValue(new Error('connect timeout'));
     const sendMailMock = jest.fn();
 
     createTransportMock.mockReturnValue({
@@ -222,7 +224,9 @@ describe('MailService', () => {
   });
 
   it('fails startup when SMTP_FAIL_FAST is true and verify fails', async () => {
-    const verifyMock = jest.fn().mockRejectedValue(new Error('connect timeout'));
+    const verifyMock = jest
+      .fn()
+      .mockRejectedValue(new Error('connect timeout'));
     const sendMailMock = jest.fn();
 
     createTransportMock.mockReturnValue({

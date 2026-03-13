@@ -142,6 +142,21 @@ const createMailServiceMock = (manual = false) => ({
   isManualOtpDelivery: jest.fn().mockReturnValue(manual),
 });
 
+const createConfigServiceMock = (nodeEnv = 'test') => ({
+  getOrThrow: jest.fn().mockImplementation((key: string) => {
+    switch (key) {
+      case 'JWT_EXPIRES_IN':
+        return '7d';
+      case 'OTP_EXPIRES_MINUTES':
+        return 5;
+      case 'NODE_ENV':
+        return nodeEnv;
+      default:
+        throw new Error(`Unexpected config key: ${key}`);
+    }
+  }),
+});
+
 describe('AuthService', () => {
   const originalNodeEnv = process.env.NODE_ENV;
 
@@ -152,10 +167,12 @@ describe('AuthService', () => {
   it('register commits user and otp when email send succeeds', async () => {
     const prismaMock = createPrismaMock({ users: [], otps: [] });
     const mailServiceMock = createMailServiceMock(false);
+    const configServiceMock = createConfigServiceMock();
     const authService = new AuthService(
       prismaMock as never,
       { sign: jest.fn() } as never,
       mailServiceMock as never,
+      configServiceMock as never,
     );
 
     await authService.register(
@@ -185,11 +202,13 @@ describe('AuthService', () => {
     mailServiceMock.sendOtpEmail.mockRejectedValue(
       new ServiceUnavailableException('Unable to send OTP email'),
     );
+    const configServiceMock = createConfigServiceMock();
 
     const authService = new AuthService(
       prismaMock as never,
       { sign: jest.fn() } as never,
       mailServiceMock as never,
+      configServiceMock as never,
     );
 
     await expect(
@@ -226,11 +245,13 @@ describe('AuthService', () => {
     mailServiceMock.sendOtpEmail.mockRejectedValue(
       new ServiceUnavailableException('Unable to send OTP email'),
     );
+    const configServiceMock = createConfigServiceMock();
 
     const authService = new AuthService(
       prismaMock as never,
       { sign: jest.fn() } as never,
       mailServiceMock as never,
+      configServiceMock as never,
     );
 
     await expect(
@@ -252,10 +273,12 @@ describe('AuthService', () => {
 
     const prismaMock = createPrismaMock({ users: [], otps: [] });
     const mailServiceMock = createMailServiceMock(true);
+    const configServiceMock = createConfigServiceMock('production');
     const authService = new AuthService(
       prismaMock as never,
       { sign: jest.fn() } as never,
       mailServiceMock as never,
+      configServiceMock as never,
     );
 
     const result = await authService.register(
@@ -288,10 +311,12 @@ describe('AuthService', () => {
       otps: [],
     });
     const mailServiceMock = createMailServiceMock(true);
+    const configServiceMock = createConfigServiceMock('production');
     const authService = new AuthService(
       prismaMock as never,
       { sign: jest.fn() } as never,
       mailServiceMock as never,
+      configServiceMock as never,
     );
 
     const result = await authService.resendOtp(

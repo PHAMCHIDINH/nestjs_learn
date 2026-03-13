@@ -27,7 +27,9 @@ function resolveOriginDecision(
 
 describe('cors utils', () => {
   it('normalizes trailing slashes and paths to origins', () => {
-    expect(normalizeOrigin('http://localhost:3001/')).toBe('http://localhost:3001');
+    expect(normalizeOrigin('http://localhost:3001/')).toBe(
+      'http://localhost:3001',
+    );
     expect(normalizeOrigin('https://app.example.com/auth/callback')).toBe(
       'https://app.example.com',
     );
@@ -56,7 +58,10 @@ describe('cors utils', () => {
   });
 
   it('rejects origins outside the allow-list', async () => {
-    const originOption = getCorsOriginOption('http://localhost:3001/', 'production');
+    const originOption = getCorsOriginOption(
+      'http://localhost:3001/',
+      'production',
+    );
 
     await expect(
       resolveOriginDecision(originOption, 'http://localhost:3002'),

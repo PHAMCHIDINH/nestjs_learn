@@ -22,11 +22,7 @@ import { UploadsService } from './uploads.service';
 
 const MAX_FILES = 5;
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
-const SUPPORTED_MIME_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-]);
+const SUPPORTED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 type UploadedBinaryFile = {
   mimetype: string;

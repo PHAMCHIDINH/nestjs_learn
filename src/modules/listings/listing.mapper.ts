@@ -94,7 +94,7 @@ export const mapListingToFrontend = (
     createdAt: listing.createdAt,
     updatedAt: listing.updatedAt,
     views: listing.viewCount,
-    savedBy: favorites.map((favorite) => favorite.userId),
+    savedCount: favorites.length,
     isSaved: currentUserId
       ? favorites.some((favorite) => favorite.userId === currentUserId)
       : false,

@@ -5,16 +5,15 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Department, OtpType, Prisma } from '@prisma/client';
 import type { Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { PrismaService } from '../../core/database/prisma.service';
 import { MailService } from '../../core/mail/mail.service';
-import {
-  AUTH_COOKIE_NAME,
-  JWT_EXPIRES_IN,
-} from '../../common/constants/auth.constants';
+import { AUTH_COOKIE_NAME } from '../../common/constants/auth.constants';
+import { parseDurationToMs } from '../../config/env.validation';
 import {
   mapDepartmentFromFrontend,
   mapUserToFrontend,
@@ -31,11 +30,25 @@ type AuthUser = {
 
 @Injectable()
 export class AuthService {
+  private readonly jwtExpiresIn: string;
+  private readonly jwtCookieMaxAgeMs: number;
+  private readonly otpExpiresMinutes: number;
+  private readonly isProduction: boolean;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly mailService: MailService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.jwtExpiresIn = this.configService.getOrThrow<string>('JWT_EXPIRES_IN');
+    this.jwtCookieMaxAgeMs = parseDurationToMs(this.jwtExpiresIn);
+    this.otpExpiresMinutes = this.configService.getOrThrow<number>(
+      'OTP_EXPIRES_MINUTES',
+    );
+    this.isProduction =
+      this.configService.getOrThrow<string>('NODE_ENV') === 'production';
+  }
 
   async register(payload: RegisterDto, requestId?: string) {
     const email = payload.email.trim().toLowerCase();
@@ -193,7 +206,6 @@ export class AuthService {
     });
 
     return {
-      accessToken: token,
       user: mapUserToFrontend(refreshedUser),
     };
   }
@@ -241,7 +253,6 @@ export class AuthService {
     });
 
     return {
-      accessToken: token,
       user: mapUserToFrontend(refreshedUser),
     };
   }
@@ -270,7 +281,7 @@ export class AuthService {
     response.clearCookie(AUTH_COOKIE_NAME, {
       httpOnly: true,
       sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      secure: this.isProduction,
       path: '/',
     });
 
@@ -283,7 +294,7 @@ export class AuthService {
     type: OtpType,
   ): Promise<string> {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + this.otpExpiresMinutes * 60 * 1000);
 
     await tx.otpVerification.create({
       data: {
@@ -300,25 +311,20 @@ export class AuthService {
   private signToken(userId: string, role: string): string {
     return this.jwtService.sign(
       { sub: userId, role },
-      {
-        expiresIn: JWT_EXPIRES_IN,
-      },
+      { expiresIn: this.jwtExpiresIn as never },
     );
   }
 
   private shouldExposeDebugOtp(): boolean {
-    return (
-      this.mailService.isManualOtpDelivery() ||
-      process.env.NODE_ENV !== 'production'
-    );
+    return this.mailService.isManualOtpDelivery() || !this.isProduction;
   }
 
   private setAuthCookie(response: Response, token: string) {
     response.cookie(AUTH_COOKIE_NAME, token, {
       httpOnly: true,
       sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      secure: this.isProduction,
+      maxAge: this.jwtCookieMaxAgeMs,
       path: '/',
     });
   }

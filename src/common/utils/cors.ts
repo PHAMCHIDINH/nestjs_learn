@@ -16,7 +16,9 @@ export function normalizeOrigin(origin: string): string {
 export function getConfiguredCorsOrigins(
   rawOrigins = process.env.CORS_ORIGIN ?? '',
 ): string[] {
-  return [...new Set(rawOrigins.split(',').map(normalizeOrigin).filter(Boolean))];
+  return [
+    ...new Set(rawOrigins.split(',').map(normalizeOrigin).filter(Boolean)),
+  ];
 }
 
 export function getCorsOriginOption(

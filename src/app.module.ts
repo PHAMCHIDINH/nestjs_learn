@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ThrottlerBehindProxyGuard } from './common/guards/throttler-behind-proxy.guard';
+import { validateEnvironment } from './config/env.validation';
 import { PrismaModule } from './core/database/prisma.module';
 import { MailModule } from './core/mail/mail.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -23,6 +24,7 @@ import { StatsModule } from './modules/stats/stats.module';
       isGlobal: true,
       cache: true,
       envFilePath: ['.env.local', '.env'],
+      validate: validateEnvironment,
     }),
     ThrottlerModule.forRoot([
       {

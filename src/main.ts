@@ -1,16 +1,28 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AUTH_COOKIE_NAME } from './common/constants/auth.constants';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
-import { getConfiguredCorsOrigins, getCorsOriginOption } from './common/utils/cors';
+import {
+  getConfiguredCorsOrigins,
+  getCorsOriginOption,
+} from './common/utils/cors';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const logger = new Logger('Bootstrap');
+  const configService = app.get(ConfigService);
+  const trustProxy =
+    configService.get<boolean | number | string>('TRUST_PROXY') ?? false;
+  const httpServer = app.getHttpAdapter().getInstance();
+
+  if (typeof httpServer?.set === 'function') {
+    httpServer.set('trust proxy', trustProxy);
+  }
 
   app.use(helmet());
   app.useGlobalFilters(new HttpExceptionFilter());
@@ -64,6 +76,6 @@ async function bootstrap() {
     },
   });
 
-  await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
+  await app.listen(configService.get<number>('PORT') ?? 3000, '0.0.0.0');
 }
 void bootstrap();
